@@ -1,0 +1,27 @@
+# Build artifacts
+/target/
+**/*.rs.bk
+
+# Cargo lock is committed for binaries
+# Uncomment if this becomes a library
+# Cargo.lock
+
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.key
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Obsidian vault
+obsidian-vault/
