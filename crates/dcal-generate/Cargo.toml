@@ -1,0 +1,16 @@
+[package]
+name = "dcal-generate"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+reqwest = { workspace = true }
+tokio = { workspace = true }
+dcal-core = { workspace = true }
+dcal-config = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

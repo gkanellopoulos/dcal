@@ -1,0 +1,21 @@
+[package]
+name = "dcal"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "dcal"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+colored = { workspace = true }
+indicatif = { workspace = true }
+dialoguer = { workspace = true }
+dcal-core = { workspace = true }
+dcal-config = { workspace = true }
+dcal-generate = { workspace = true }
+dcal-hooks = { workspace = true }
+dcal-onboard = { workspace = true }
