@@ -4,4 +4,5 @@ pub mod id;
 pub mod lock;
 pub mod paths;
 pub mod project;
+pub mod project_files;
 pub mod registry;
