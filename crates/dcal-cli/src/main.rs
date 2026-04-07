@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand};
 
 mod commands;
 mod error;
+mod output;
 
 /// dcal — project lifecycle management for Claude Code
 #[derive(Parser)]
