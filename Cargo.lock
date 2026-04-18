@@ -219,6 +219,7 @@ name = "dcal"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "colored",
  "dcal-config",
@@ -285,6 +286,7 @@ dependencies = [
 name = "dcal-onboard"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "dcal-core",
  "serde",
  "serde_json",
