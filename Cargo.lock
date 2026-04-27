@@ -260,6 +260,7 @@ dependencies = [
 name = "dcal-generate"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "dcal-config",
  "dcal-core",
  "reqwest",
