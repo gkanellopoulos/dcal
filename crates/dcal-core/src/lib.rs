@@ -1,5 +1,6 @@
 //! Core data models, registry operations, and lifecycle management for dcal.
 
+pub mod brief;
 pub mod id;
 pub mod lifecycle;
 pub mod lock;

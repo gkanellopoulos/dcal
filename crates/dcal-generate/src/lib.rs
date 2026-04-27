@@ -4,4 +4,5 @@ pub mod client;
 pub mod generate;
 pub mod intake;
 pub mod resolve;
+pub mod scaffold;
 pub mod validate;
