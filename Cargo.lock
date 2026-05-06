@@ -229,6 +229,7 @@ dependencies = [
  "dcal-onboard",
  "dialoguer",
  "indicatif",
+ "serde_json",
  "tokio",
 ]
 
