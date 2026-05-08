@@ -2,6 +2,7 @@ use std::io::Read as _;
 
 use anyhow::{bail, Context, Result};
 
+use dcal_core::logging;
 use dcal_core::paths::DcalPaths;
 use dcal_core::registry;
 use dcal_hooks::checkin::{self, HookInput, SessionSummary};
@@ -10,7 +11,8 @@ use crate::resolve::resolve_target;
 
 pub fn run(target: Option<String>, auto: bool, project_from_cwd: bool) -> Result<()> {
     if auto || project_from_cwd {
-        run_hook_mode()
+        run_hook_mode();
+        Ok(())
     } else if let Some(target) = target {
         run_manual_mode(&target)
     } else {
@@ -18,8 +20,19 @@ pub fn run(target: Option<String>, auto: bool, project_from_cwd: bool) -> Result
     }
 }
 
-fn run_hook_mode() -> Result<()> {
+/// Hook mode: catch all errors, log to errors.log, and exit 0.
+/// Never interrupt the developer's terminal.
+fn run_hook_mode() {
     let paths = DcalPaths::from_env();
+
+    if let Err(e) = run_hook_mode_inner(&paths) {
+        logging::append_error_log(&paths.errors_log(), &e);
+        logging::debug(&format!("hook checkin failed: {e}"));
+    }
+}
+
+fn run_hook_mode_inner(paths: &DcalPaths) -> Result<()> {
+    logging::debug("hook mode: reading stdin");
 
     let mut stdin_buf = String::new();
     std::io::stdin()
@@ -29,10 +42,14 @@ fn run_hook_mode() -> Result<()> {
     let input: HookInput = serde_json::from_str(&stdin_buf)
         .with_context(|| "failed to parse hook input from stdin")?;
 
-    let performed = checkin::auto_checkin(&paths, &input)?;
+    logging::debug(&format!("hook mode: cwd={}, session={}", input.cwd, input.session_id));
 
-    if !performed {
-        // Non-dcal session — exit silently
+    let performed = checkin::auto_checkin(paths, &input)?;
+
+    if performed {
+        logging::debug("hook mode: checkin recorded");
+    } else {
+        logging::debug("hook mode: no matching project, skipped");
     }
 
     Ok(())
