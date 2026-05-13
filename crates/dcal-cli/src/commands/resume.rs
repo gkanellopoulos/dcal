@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::PathBuf;
 use std::process::Command;
 
 use anyhow::{Context, Result};
@@ -19,6 +20,8 @@ pub fn run(target: String) -> Result<()> {
         .with_context(|| "failed to load registry")?;
 
     let entry = resolve_target(&entries, &target)?;
+
+    check_hook_health();
 
     // Load project data
     let meta = project_files::load_meta(&paths.project_meta(&entry.id))
@@ -79,4 +82,22 @@ pub fn run(target: String) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn check_hook_health() {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let settings_path = PathBuf::from(&home).join(".claude").join("settings.json");
+
+    match dcal_hooks::install::get_hook_binary_path(&settings_path) {
+        None => {
+            eprintln!("Warning: no dcal SessionEnd hook found.");
+            eprintln!("  Session journaling is disabled. Run 'dcal init' to install it.\n");
+        }
+        Some(bin_path) => {
+            if !PathBuf::from(&bin_path).exists() {
+                eprintln!("Warning: dcal hook points to '{bin_path}' which no longer exists.");
+                eprintln!("  Session journaling will not work. Run 'dcal init' to fix.\n");
+            }
+        }
+    }
 }

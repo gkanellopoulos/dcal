@@ -32,10 +32,15 @@ pub fn run() -> Result<()> {
     // Run interactive config wizard
     dcal_config::init::run_wizard(&paths.config())?;
 
-    // Install SessionEnd hook
+    // Install SessionEnd hook with absolute path to this binary
+    let dcal_bin = std::env::current_exe()
+        .with_context(|| "failed to resolve dcal binary path")?
+        .display()
+        .to_string();
+
     let settings_path = claude_settings_path();
-    match dcal_hooks::install::install_session_end_hook(&settings_path) {
-        Ok(true) => println!("\nSessionEnd hook installed."),
+    match dcal_hooks::install::install_session_end_hook(&settings_path, &dcal_bin) {
+        Ok(true) => println!("\nSessionEnd hook installed ({dcal_bin})."),
         Ok(false) => println!("\nSessionEnd hook already present."),
         Err(e) => {
             eprintln!("\nWarning: failed to install SessionEnd hook: {e}");

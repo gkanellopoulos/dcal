@@ -15,29 +15,36 @@ pub enum HookInstallError {
     Parse { path: String, source: serde_json::Error },
 }
 
-const DCAL_HOOK_COMMAND: &str = "dcal checkin --auto --project-from-cwd";
 const HOOK_TIMEOUT: u64 = 60;
+
+fn build_hook_command(dcal_bin: &str) -> String {
+    format!("{dcal_bin} checkin --auto --project-from-cwd")
+}
 
 /// Install the dcal SessionEnd hook into a Claude Code settings file.
 ///
-/// Reads the file (or starts from an empty object), merges the dcal hook
-/// into the `hooks.SessionEnd` array without overwriting existing hooks,
-/// and writes the result back.
+/// Uses `dcal_bin` as the absolute path to the dcal binary in the hook
+/// command, so the hook works in non-interactive shells where aliases
+/// and PATH modifications are not available.
 ///
 /// If the dcal hook is already present, this is a no-op.
-pub fn install_session_end_hook(settings_path: &Path) -> Result<bool, HookInstallError> {
+pub fn install_session_end_hook(
+    settings_path: &Path,
+    dcal_bin: &str,
+) -> Result<bool, HookInstallError> {
     let mut settings = load_or_create(settings_path)?;
 
     if has_dcal_hook(&settings) {
         return Ok(false);
     }
 
+    let command = build_hook_command(dcal_bin);
     let dcal_hook_entry = json!({
         "matcher": "other",
         "hooks": [
             {
                 "type": "command",
-                "command": DCAL_HOOK_COMMAND,
+                "command": command,
                 "timeout": HOOK_TIMEOUT
             }
         ]
@@ -62,6 +69,37 @@ pub fn install_session_end_hook(settings_path: &Path) -> Result<bool, HookInstal
 
     save(settings_path, &settings)?;
     Ok(true)
+}
+
+/// Extract the binary path from an installed dcal hook command.
+///
+/// Returns `None` if no dcal hook is found.
+pub fn get_hook_binary_path(settings_path: &Path) -> Option<String> {
+    let settings = load_or_create(settings_path).ok()?;
+    settings
+        .get("hooks")
+        .and_then(|h| h.get("SessionEnd"))
+        .and_then(|se| se.as_array())
+        .and_then(|entries| {
+            entries.iter().find_map(|entry| {
+                entry
+                    .get("hooks")
+                    .and_then(|h| h.as_array())
+                    .and_then(|hooks| {
+                        hooks.iter().find_map(|hook| {
+                            hook.get("command")
+                                .and_then(|c| c.as_str())
+                                .filter(|cmd| cmd.contains("dcal checkin"))
+                                .map(|cmd| {
+                                    cmd.split_whitespace()
+                                        .next()
+                                        .unwrap_or(cmd)
+                                        .to_string()
+                                })
+                        })
+                    })
+            })
+        })
 }
 
 /// Check whether the dcal hook is already installed.
@@ -128,12 +166,18 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
+    const TEST_BIN: &str = "/usr/local/bin/dcal";
+
+    fn expected_command() -> String {
+        build_hook_command(TEST_BIN)
+    }
+
     #[test]
     fn install_creates_file_if_missing() {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("settings.json");
 
-        let installed = install_session_end_hook(&path).unwrap();
+        let installed = install_session_end_hook(&path, TEST_BIN).unwrap();
         assert!(installed);
         assert!(path.exists());
 
@@ -149,12 +193,12 @@ mod tests {
         let path = dir.path().join("settings.json");
         fs::write(&path, "{}").unwrap();
 
-        let installed = install_session_end_hook(&path).unwrap();
+        let installed = install_session_end_hook(&path, TEST_BIN).unwrap();
         assert!(installed);
 
         let content: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
         let hook = &content["hooks"]["SessionEnd"][0]["hooks"][0];
-        assert_eq!(hook["command"], DCAL_HOOK_COMMAND);
+        assert_eq!(hook["command"], expected_command());
         assert_eq!(hook["timeout"], HOOK_TIMEOUT);
     }
 
@@ -180,20 +224,18 @@ mod tests {
         });
         fs::write(&path, serde_json::to_string_pretty(&existing).unwrap()).unwrap();
 
-        let installed = install_session_end_hook(&path).unwrap();
+        let installed = install_session_end_hook(&path, TEST_BIN).unwrap();
         assert!(installed);
 
         let content: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
         let session_end = content["hooks"]["SessionEnd"].as_array().unwrap();
         assert_eq!(session_end.len(), 2);
 
-        // Original hook still there
         assert_eq!(
             session_end[0]["hooks"][0]["command"],
             "some-other-tool --cleanup"
         );
-        // dcal hook appended
-        assert_eq!(session_end[1]["hooks"][0]["command"], DCAL_HOOK_COMMAND);
+        assert_eq!(session_end[1]["hooks"][0]["command"], expected_command());
     }
 
     #[test]
@@ -214,7 +256,7 @@ mod tests {
         });
         fs::write(&path, serde_json::to_string_pretty(&existing).unwrap()).unwrap();
 
-        install_session_end_hook(&path).unwrap();
+        install_session_end_hook(&path, TEST_BIN).unwrap();
 
         let content: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
         assert!(content["hooks"]["Stop"].is_array());
@@ -227,8 +269,8 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("settings.json");
 
-        install_session_end_hook(&path).unwrap();
-        let second = install_session_end_hook(&path).unwrap();
+        install_session_end_hook(&path, TEST_BIN).unwrap();
+        let second = install_session_end_hook(&path, TEST_BIN).unwrap();
         assert!(!second);
 
         let content: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
@@ -241,7 +283,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("settings.json");
 
-        install_session_end_hook(&path).unwrap();
+        install_session_end_hook(&path, TEST_BIN).unwrap();
 
         let content: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(content["hooks"]["SessionEnd"][0]["matcher"], "other");
@@ -253,7 +295,42 @@ mod tests {
         let path = dir.path().join("settings.json");
         fs::write(&path, "").unwrap();
 
-        let installed = install_session_end_hook(&path).unwrap();
+        let installed = install_session_end_hook(&path, TEST_BIN).unwrap();
         assert!(installed);
+    }
+
+    #[test]
+    fn install_uses_absolute_path_in_command() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("settings.json");
+
+        install_session_end_hook(&path, "/opt/dcal/bin/dcal").unwrap();
+
+        let content: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        let cmd = content["hooks"]["SessionEnd"][0]["hooks"][0]["command"]
+            .as_str()
+            .unwrap();
+        assert!(cmd.starts_with("/opt/dcal/bin/dcal "));
+        assert!(cmd.contains("checkin --auto --project-from-cwd"));
+    }
+
+    #[test]
+    fn get_hook_binary_path_extracts_path() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("settings.json");
+
+        install_session_end_hook(&path, "/usr/local/bin/dcal").unwrap();
+
+        let bin = get_hook_binary_path(&path);
+        assert_eq!(bin, Some("/usr/local/bin/dcal".to_string()));
+    }
+
+    #[test]
+    fn get_hook_binary_path_returns_none_when_missing() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("settings.json");
+        fs::write(&path, "{}").unwrap();
+
+        assert!(get_hook_binary_path(&path).is_none());
     }
 }

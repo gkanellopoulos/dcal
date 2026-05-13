@@ -274,7 +274,7 @@ fn pause_by_project_id() {
 // -- error log --
 
 #[test]
-fn hook_mode_bad_stdin_logs_error() {
+fn hook_mode_bad_stdin_logs_error_and_exits_nonzero() {
     let home = setup_home();
 
     dcal()
@@ -282,7 +282,8 @@ fn hook_mode_bad_stdin_logs_error() {
         .env("DCAL_HOME", home.path())
         .write_stdin("not valid json")
         .assert()
-        .success();
+        .failure()
+        .stderr(predicate::str::contains("failed to parse hook input"));
 
     let log = fs::read_to_string(home.path().join("errors.log")).unwrap();
     assert!(log.contains("failed to parse hook input"));
