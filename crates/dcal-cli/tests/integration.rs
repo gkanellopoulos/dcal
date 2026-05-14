@@ -65,7 +65,7 @@ fn help_flag() {
 
 #[test]
 fn version_flag() {
-    dcal().arg("--version").assert().success().stdout(predicate::str::contains("0.1.0"));
+    dcal().arg("--version").assert().success().stdout(predicate::str::contains("0.2.0"));
 }
 
 // -- list --
@@ -130,6 +130,113 @@ fn list_invalid_status() {
         .assert()
         .failure()
         .stderr(predicate::str::contains("unknown status"));
+}
+
+// -- info --
+
+#[test]
+fn info_shows_dashboard() {
+    let home = setup_home();
+    seed_project(&home, "proj_aaa111", "my-app", "active", "design");
+
+    dcal()
+        .args(["info", "my-app"])
+        .env("DCAL_HOME", home.path())
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::contains("my-app")
+                .and(predicate::str::contains("proj_aaa111"))
+                .and(predicate::str::contains("design")),
+        );
+}
+
+#[test]
+fn info_by_id() {
+    let home = setup_home();
+    seed_project(&home, "proj_aaa111", "my-app", "active", "design");
+
+    dcal()
+        .args(["info", "proj_aaa111"])
+        .env("DCAL_HOME", home.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("my-app"));
+}
+
+#[test]
+fn info_unknown_project() {
+    let home = setup_home();
+
+    dcal()
+        .args(["info", "nonexistent"])
+        .env("DCAL_HOME", home.path())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("no project found"));
+}
+
+// -- journal --
+
+#[test]
+fn journal_empty() {
+    let home = setup_home();
+    seed_project(&home, "proj_aaa111", "my-app", "active", "design");
+
+    dcal()
+        .args(["journal", "my-app"])
+        .env("DCAL_HOME", home.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No journal entries"));
+}
+
+#[test]
+fn journal_with_content() {
+    let home = setup_home();
+    seed_project(&home, "proj_aaa111", "my-app", "active", "design");
+    fs::write(
+        home.path().join("projects/proj_aaa111/journal.md"),
+        "## Session — 2026-05-14\n\nDid some work.\n",
+    )
+    .unwrap();
+
+    dcal()
+        .args(["journal", "my-app"])
+        .env("DCAL_HOME", home.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Did some work"));
+}
+
+// -- snapshot --
+
+#[test]
+fn snapshot_empty() {
+    let home = setup_home();
+    seed_project(&home, "proj_aaa111", "my-app", "active", "design");
+
+    dcal()
+        .args(["snapshot", "my-app"])
+        .env("DCAL_HOME", home.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No snapshot"));
+}
+
+// -- sessions --
+
+#[test]
+fn sessions_empty() {
+    let home = setup_home();
+    seed_project(&home, "proj_aaa111", "my-app", "active", "design");
+
+    dcal()
+        .args(["sessions", "my-app"])
+        .env("DCAL_HOME", home.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No sessions"));
 }
 
 // -- pause --
@@ -258,6 +365,25 @@ fn checkin_no_args_shows_usage() {
         .stderr(predicate::str::contains("usage"));
 }
 
+// -- new --
+
+#[test]
+fn new_invalid_path_fails_before_api() {
+    let home = setup_home();
+    fs::write(
+        home.path().join("config.yml"),
+        "version: \"1.0\"\npersonal:\n  name: test\n",
+    )
+    .unwrap();
+
+    dcal()
+        .args(["new", "--path", "/nonexistent/deep/path/project"])
+        .env("DCAL_HOME", home.path())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("does not exist"));
+}
+
 // -- resolve by ID --
 
 #[test]
@@ -271,6 +397,123 @@ fn pause_by_project_id() {
         .assert()
         .success()
         .stdout(predicate::str::contains("Paused 'my-app'"));
+}
+
+// -- search --
+
+#[test]
+fn search_finds_matching() {
+    let home = setup_home();
+    seed_project(&home, "proj_aaa111", "my-app", "active", "design");
+    seed_project(&home, "proj_bbb222", "my-lib", "paused", "testing");
+    seed_project(&home, "proj_ccc333", "other-tool", "active", "implementation");
+
+    dcal()
+        .args(["search", "my"])
+        .env("DCAL_HOME", home.path())
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::contains("my-app")
+                .and(predicate::str::contains("my-lib"))
+                .and(predicate::str::contains("other-tool").not()),
+        );
+}
+
+#[test]
+fn search_case_insensitive() {
+    let home = setup_home();
+    seed_project(&home, "proj_aaa111", "MyApp", "active", "design");
+
+    dcal()
+        .args(["search", "myapp"])
+        .env("DCAL_HOME", home.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("MyApp"));
+}
+
+#[test]
+fn search_no_matches() {
+    let home = setup_home();
+    seed_project(&home, "proj_aaa111", "my-app", "active", "design");
+
+    dcal()
+        .args(["search", "zzz"])
+        .env("DCAL_HOME", home.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No projects matching"));
+}
+
+// -- sync --
+
+#[test]
+fn sync_no_projects() {
+    let home = setup_home();
+
+    dcal()
+        .arg("sync")
+        .env("DCAL_HOME", home.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No projects to sync"));
+}
+
+#[test]
+fn sync_single_project() {
+    let home = setup_home();
+    seed_project(&home, "proj_aaa111", "my-app", "active", "design");
+
+    dcal()
+        .args(["sync", "my-app"])
+        .env("DCAL_HOME", home.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("up to date"));
+}
+
+// -- default routing (dcal <name|id> → info) --
+
+#[test]
+fn default_routing_by_name() {
+    let home = setup_home();
+    seed_project(&home, "proj_aaa111", "my-app", "active", "design");
+
+    dcal()
+        .arg("my-app")
+        .env("DCAL_HOME", home.path())
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::contains("my-app")
+                .and(predicate::str::contains("proj_aaa111")),
+        );
+}
+
+#[test]
+fn default_routing_by_id() {
+    let home = setup_home();
+    seed_project(&home, "proj_aaa111", "my-app", "active", "design");
+
+    dcal()
+        .arg("proj_aaa111")
+        .env("DCAL_HOME", home.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("my-app"));
+}
+
+#[test]
+fn default_routing_unknown() {
+    let home = setup_home();
+
+    dcal()
+        .arg("nonexistent")
+        .env("DCAL_HOME", home.path())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("no project found"));
 }
 
 // -- error log --

@@ -21,9 +21,10 @@ pub fn run(target: String) -> Result<()> {
 
     let entry = resolve_target(&entries, &target)?;
 
-    check_hook_health();
+    // Sync unprocessed CC sessions before loading project data
+    run_sync(&entry, &paths);
 
-    // Load project data
+    // Load project data (after sync so it reflects latest state)
     let meta = project_files::load_meta(&paths.project_meta(&entry.id))
         .with_context(|| format!("failed to load metadata for {}", entry.id))?;
     let snapshot = project_files::load_snapshot(&paths.project_snapshot(&entry.id))?;
@@ -84,20 +85,20 @@ pub fn run(target: String) -> Result<()> {
     Ok(())
 }
 
-fn check_hook_health() {
+fn run_sync(entry: &RegistryEntry, paths: &DcalPaths) {
     let home = std::env::var("HOME").unwrap_or_default();
-    let settings_path = PathBuf::from(&home).join(".claude").join("settings.json");
+    let cc_home = PathBuf::from(&home).join(".claude");
 
-    match dcal_hooks::install::get_hook_binary_path(&settings_path) {
-        None => {
-            eprintln!("Warning: no dcal SessionEnd hook found.");
-            eprintln!("  Session journaling is disabled. Run 'dcal init' to install it.\n");
+    let summarizer = dcal_hooks::summarizer::ClaudeCliSummarizer;
+
+    match dcal_hooks::sync::sync_unprocessed_sessions(entry, paths, &cc_home, &summarizer) {
+        Ok(result) if result.synced > 0 => {
+            eprintln!("Synced {} new session(s).\n", result.synced);
         }
-        Some(bin_path) => {
-            if !PathBuf::from(&bin_path).exists() {
-                eprintln!("Warning: dcal hook points to '{bin_path}' which no longer exists.");
-                eprintln!("  Session journaling will not work. Run 'dcal init' to fix.\n");
-            }
+        Ok(_) => {}
+        Err(e) => {
+            eprintln!("Warning: session sync failed: {e}");
+            eprintln!("  Proceeding with existing data.\n");
         }
     }
 }

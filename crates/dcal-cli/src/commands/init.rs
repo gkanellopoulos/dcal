@@ -1,12 +1,11 @@
 use std::fs;
-use std::path::PathBuf;
 use std::process::Command;
 
 use anyhow::{Context, Result};
 
 use dcal_core::paths::DcalPaths;
 
-/// Run `dcal init`: create directory structure, config wizard, hook install.
+/// Run `dcal init`: create directory structure and config wizard.
 pub fn run() -> Result<()> {
     let paths = DcalPaths::from_env();
 
@@ -32,22 +31,6 @@ pub fn run() -> Result<()> {
     // Run interactive config wizard
     dcal_config::init::run_wizard(&paths.config())?;
 
-    // Install SessionEnd hook with absolute path to this binary
-    let dcal_bin = std::env::current_exe()
-        .with_context(|| "failed to resolve dcal binary path")?
-        .display()
-        .to_string();
-
-    let settings_path = claude_settings_path();
-    match dcal_hooks::install::install_session_end_hook(&settings_path, &dcal_bin) {
-        Ok(true) => println!("\nSessionEnd hook installed ({dcal_bin})."),
-        Ok(false) => println!("\nSessionEnd hook already present."),
-        Err(e) => {
-            eprintln!("\nWarning: failed to install SessionEnd hook: {e}");
-            eprintln!("You can install it manually later or re-run dcal init.");
-        }
-    }
-
     // Check for claude on PATH
     if !is_claude_on_path() {
         eprintln!("\nWarning: 'claude' not found on PATH.");
@@ -56,13 +39,6 @@ pub fn run() -> Result<()> {
 
     println!("\ndcal initialized successfully.");
     Ok(())
-}
-
-fn claude_settings_path() -> PathBuf {
-    let home = std::env::var("HOME").expect("HOME not set");
-    PathBuf::from(home)
-        .join(".claude")
-        .join("settings.json")
 }
 
 fn is_claude_on_path() -> bool {

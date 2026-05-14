@@ -1,8 +1,14 @@
 pub mod checkin;
+pub mod info;
 pub mod init;
+pub mod journal;
 pub mod list;
 pub mod new;
 pub mod onboard;
 pub mod pause;
 pub mod phase;
 pub mod resume;
+pub mod search;
+pub mod sessions;
+pub mod snapshot;
+pub mod sync;

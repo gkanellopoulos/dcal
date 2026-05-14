@@ -16,6 +16,17 @@ pub fn run(path: Option<PathBuf>) -> Result<()> {
         anyhow::bail!("dcal is not initialized. Run 'dcal init' first.");
     }
 
+    // Validate --path early, before any API calls
+    if let Some(ref p) = path {
+        let parent = p.parent().unwrap_or(p);
+        if !parent.exists() {
+            anyhow::bail!(
+                "path '{}' does not exist. Create the parent directory first.",
+                parent.display()
+            );
+        }
+    }
+
     let config = loader::load(&paths.config())
         .with_context(|| "failed to load config")?;
 
