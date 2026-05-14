@@ -96,7 +96,9 @@ fn list_shows_projects() {
             predicate::str::contains("my-app")
                 .and(predicate::str::contains("my-lib"))
                 .and(predicate::str::contains("active"))
-                .and(predicate::str::contains("paused")),
+                .and(predicate::str::contains("paused"))
+                .and(predicate::str::contains("proj_aaa111"))
+                .and(predicate::str::contains("proj_bbb222")),
         );
 }
 

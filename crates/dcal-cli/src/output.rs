@@ -60,23 +60,25 @@ pub fn render_table(entries: &[RegistryEntry], phases: &[ProjectPhase]) {
         return;
     }
 
+    let header_id = "ID";
     let header_name = "NAME";
     let header_status = "STATUS";
     let header_active = "LAST ACTIVE";
     let header_phase = "PHASE";
 
+    let id_width = 11; // proj_ + 6 hex
     let name_width = entries
         .iter()
         .map(|e| e.name.len())
         .max()
         .unwrap_or(0)
         .max(header_name.len());
-
     let status_width = 12;
     let active_width = 16;
 
     println!(
-        "  {:<name_width$}  {:<status_width$}  {:<active_width$}  {}",
+        "  {:<id_width$}  {:<name_width$}  {:<status_width$}  {:<active_width$}  {}",
+        header_id.bold(),
         header_name.bold(),
         header_status.bold(),
         header_active.bold(),
@@ -88,13 +90,12 @@ pub fn render_table(entries: &[RegistryEntry], phases: &[ProjectPhase]) {
         let active_str = relative_time(entry.last_active_at);
         let phase_str = format_phase(*phase);
 
-        // Colored strings have invisible ANSI codes that affect padding,
-        // so we pad the raw text and then replace with the colored version.
         let raw_status = entry.status.to_string();
         let status_padding = status_width.saturating_sub(raw_status.len());
 
         println!(
-            "  {:<name_width$}  {}{}  {:<active_width$}  {}",
+            "  {:<id_width$}  {:<name_width$}  {}{}  {:<active_width$}  {}",
+            entry.id,
             entry.name,
             status_str,
             " ".repeat(status_padding),
