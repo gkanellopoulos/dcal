@@ -75,8 +75,8 @@ mod tests {
     #[test]
     fn slug_from_absolute_path() {
         assert_eq!(
-            derive_cc_slug("/Users/gk/projects/foo"),
-            "-Users-gk-projects-foo"
+            derive_cc_slug("/home/dev/projects/foo"),
+            "-home-dev-projects-foo"
         );
     }
 
@@ -95,22 +95,20 @@ mod tests {
 
     #[test]
     fn cc_project_dir_builds_path() {
-        let home = Path::new("/Users/gk/.claude");
-        let result = cc_project_dir(home, "/Users/gk/projects/foo");
+        let home = Path::new("/home/dev/.claude");
+        let result = cc_project_dir(home, "/home/dev/projects/foo");
         assert_eq!(
             result,
-            PathBuf::from("/Users/gk/.claude/projects/-Users-gk-projects-foo")
+            PathBuf::from("/home/dev/.claude/projects/-home-dev-projects-foo")
         );
     }
 
     #[test]
     fn cc_project_dir_expands_tilde() {
-        let home = Path::new("/Users/gk/.claude");
+        let home = Path::new("/home/dev/.claude");
         let result = cc_project_dir(home, "~/projects/foo");
         let result_str = result.to_string_lossy();
-        // Tilde is expanded to the actual home directory, not left as "~"
         assert!(!result_str.contains('~'), "tilde was not expanded: {result_str}");
-        // The slug should end with -projects-foo (from the expanded absolute path)
         assert!(result_str.ends_with("-projects-foo"), "unexpected slug: {result_str}");
     }
 
