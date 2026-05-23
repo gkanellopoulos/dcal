@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 
+use chrono::{DateTime, Utc};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -27,6 +28,24 @@ pub fn read_transcript(path: &Path) -> Result<String, TranscriptError> {
 
     let lines: Vec<&str> = content.lines().collect();
     extract_content(&lines)
+}
+
+/// Extract the last timestamp from a JSONL transcript.
+///
+/// CC entries include a `"timestamp"` field (ISO 8601). Returns the latest
+/// one found, which represents approximately when the session ended.
+pub fn last_timestamp(path: &Path) -> Option<DateTime<Utc>> {
+    let content = fs::read_to_string(path).ok()?;
+
+    content
+        .lines()
+        .rev()
+        .filter_map(|line| {
+            let value: serde_json::Value = serde_json::from_str(line.trim()).ok()?;
+            let ts_str = value.get("timestamp")?.as_str()?;
+            ts_str.parse::<DateTime<Utc>>().ok()
+        })
+        .next()
 }
 
 fn extract_content(lines: &[&str]) -> Result<String, TranscriptError> {
@@ -216,6 +235,44 @@ mod tests {
     fn read_transcript_missing_file() {
         let result = read_transcript(Path::new("/nonexistent/transcript.jsonl"));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn last_timestamp_extracts_latest() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("session.jsonl");
+        let content = r#"{"type": "user", "message": {"role": "user", "content": "hi"}, "timestamp": "2026-05-23T09:09:04.782Z"}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "hello"}]}, "timestamp": "2026-05-23T09:10:16.850Z"}"#;
+        fs::write(&path, content).unwrap();
+
+        let ts = last_timestamp(&path).unwrap();
+        assert_eq!(ts.to_rfc3339_opts(chrono::SecondsFormat::Millis, true), "2026-05-23T09:10:16.850Z");
+    }
+
+    #[test]
+    fn last_timestamp_skips_entries_without_timestamp() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("session.jsonl");
+        let content = r#"{"type": "user", "message": {"role": "user", "content": "hi"}, "timestamp": "2026-05-23T09:00:00.000Z"}
+{"type": "permission-mode", "mode": "default"}"#;
+        fs::write(&path, content).unwrap();
+
+        let ts = last_timestamp(&path).unwrap();
+        assert_eq!(ts.to_rfc3339_opts(chrono::SecondsFormat::Millis, true), "2026-05-23T09:00:00.000Z");
+    }
+
+    #[test]
+    fn last_timestamp_missing_file_returns_none() {
+        assert!(last_timestamp(Path::new("/nonexistent/file.jsonl")).is_none());
+    }
+
+    #[test]
+    fn last_timestamp_no_timestamps_returns_none() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("session.jsonl");
+        fs::write(&path, r#"{"type": "permission-mode", "mode": "default"}"#).unwrap();
+
+        assert!(last_timestamp(&path).is_none());
     }
 
     #[test]

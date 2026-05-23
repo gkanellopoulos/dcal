@@ -85,20 +85,25 @@ pub fn auto_checkin(
     // Generate summary via claude -p
     let summary = generate_summary(&transcript_content)?;
 
-    // Apply the checkin
-    apply_checkin(paths, &entry, Some(&input.session_id), &summary)?;
+    // Apply the checkin (hook mode fires at session end, so now is correct)
+    apply_checkin(paths, &entry, Some(&input.session_id), &summary, None)?;
 
     Ok(true)
 }
 
 /// Apply a checkin with a pre-built summary (used by both auto and manual modes).
+///
+/// When `ended_at` is `Some`, that timestamp is used for the session entry and
+/// journal header (e.g. the original CC session end time). When `None`, falls
+/// back to the current time (appropriate for manual checkins).
 pub fn apply_checkin(
     paths: &DcalPaths,
     entry: &RegistryEntry,
     cc_session_id: Option<&str>,
     summary: &SessionSummary,
+    ended_at: Option<chrono::DateTime<Utc>>,
 ) -> Result<(), CheckinError> {
-    let now = Utc::now();
+    let now = ended_at.unwrap_or_else(Utc::now);
 
     // Load current meta
     let meta_path = paths.project_meta(&entry.id);
@@ -416,7 +421,7 @@ mod tests {
         let (_dir, paths) = setup();
         let entry = create_test_project(&paths);
 
-        apply_checkin(&paths, &entry, Some("cc-123"), &sample_summary()).unwrap();
+        apply_checkin(&paths, &entry, Some("cc-123"), &sample_summary(), None).unwrap();
 
         let sessions = project_files::load_sessions(
             &paths.project_sessions(&entry.id),
@@ -432,7 +437,7 @@ mod tests {
         let (_dir, paths) = setup();
         let entry = create_test_project(&paths);
 
-        apply_checkin(&paths, &entry, None, &sample_summary()).unwrap();
+        apply_checkin(&paths, &entry, None, &sample_summary(), None).unwrap();
 
         let journal = project_files::load_journal(
             &paths.project_journal(&entry.id),
@@ -448,7 +453,7 @@ mod tests {
         let (_dir, paths) = setup();
         let entry = create_test_project(&paths);
 
-        apply_checkin(&paths, &entry, None, &sample_summary()).unwrap();
+        apply_checkin(&paths, &entry, None, &sample_summary(), None).unwrap();
 
         let snapshot = project_files::load_snapshot(
             &paths.project_snapshot(&entry.id),
@@ -464,7 +469,7 @@ mod tests {
         let entry = create_test_project(&paths);
         let before = entry.last_active_at;
 
-        apply_checkin(&paths, &entry, None, &sample_summary()).unwrap();
+        apply_checkin(&paths, &entry, None, &sample_summary(), None).unwrap();
 
         let entries = registry::load(&paths.registry()).unwrap();
         assert!(entries[0].last_active_at > before);
@@ -475,7 +480,7 @@ mod tests {
         let (_dir, paths) = setup();
         let entry = create_test_project(&paths);
 
-        apply_checkin(&paths, &entry, None, &sample_summary()).unwrap();
+        apply_checkin(&paths, &entry, None, &sample_summary(), None).unwrap();
 
         let sessions = project_files::load_sessions(
             &paths.project_sessions(&entry.id),
@@ -492,9 +497,31 @@ mod tests {
         let mut summary = sample_summary();
         summary.phase = "testing".to_string();
 
-        apply_checkin(&paths, &entry, None, &summary).unwrap();
+        apply_checkin(&paths, &entry, None, &summary, None).unwrap();
 
         let meta = project_files::load_meta(&paths.project_meta(&entry.id)).unwrap();
         assert_eq!(meta.phase, ProjectPhase::Testing);
+    }
+
+    #[test]
+    fn apply_checkin_uses_provided_ended_at() {
+        let (_dir, paths) = setup();
+        let entry = create_test_project(&paths);
+
+        let past = chrono::DateTime::parse_from_rfc3339("2026-01-15T14:30:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        apply_checkin(&paths, &entry, Some("cc-old"), &sample_summary(), Some(past)).unwrap();
+
+        let sessions = project_files::load_sessions(
+            &paths.project_sessions(&entry.id),
+        ).unwrap();
+        assert_eq!(sessions[0].ended_at, past);
+
+        let journal = project_files::load_journal(
+            &paths.project_journal(&entry.id),
+        ).unwrap();
+        assert!(journal.contains("2026-01-15 14:30 UTC"));
     }
 }

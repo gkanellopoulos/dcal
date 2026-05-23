@@ -88,7 +88,8 @@ pub fn sync_unprocessed_sessions(
             }
         };
 
-        crate::checkin::apply_checkin(paths, entry, Some(session_id), &summary)?;
+        let ended_at = transcript::last_timestamp(transcript_path);
+        crate::checkin::apply_checkin(paths, entry, Some(session_id), &summary, ended_at)?;
         synced += 1;
     }
 

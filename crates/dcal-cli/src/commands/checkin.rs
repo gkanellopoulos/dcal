@@ -118,7 +118,7 @@ fn run_manual_mode(target: &str) -> Result<()> {
         phase: phase_options[phase_idx].to_string(),
     };
 
-    checkin::apply_checkin(&paths, &entry, None, &summary)?;
+    checkin::apply_checkin(&paths, &entry, None, &summary, None)?;
 
     println!("\nCheckin recorded for '{}'.", entry.name);
 
