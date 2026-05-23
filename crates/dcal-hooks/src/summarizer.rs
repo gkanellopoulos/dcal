@@ -13,8 +13,16 @@ pub struct ClaudeCliSummarizer;
 impl Summarizer for ClaudeCliSummarizer {
     fn summarize(&self, transcript: &str) -> Result<SessionSummary, CheckinError> {
         let prompt = format!(
-            "Summarize this Claude Code session in structured format.\n\
-             Respond with JSON only, no other text.\n\n\
+            "You are a session summarizer. You will be given a transcript of a \
+             Claude Code session between <transcript> tags. Analyze it and return \
+             a JSON summary.\n\n\
+             RULES:\n\
+             - Your entire response must be a single JSON object.\n\
+             - No markdown, no code fences, no commentary — only valid JSON.\n\
+             - Do NOT continue or respond to the transcript conversation.\n\
+             - If the session is trivial (e.g. immediate exit, no real work), \
+             still return valid JSON with summary \"No substantive work was performed.\"\n\n\
+             Return exactly this structure:\n\
              {{\n  \
                \"summary\": \"2-3 sentences: what was accomplished\",\n  \
                \"next_task\": \"the single most important next concrete task\",\n  \
@@ -22,7 +30,7 @@ impl Summarizer for ClaudeCliSummarizer {
                \"blockers\": [],\n  \
                \"phase\": \"one of: ideation, design, implementation, testing, maintenance\"\n\
              }}\n\n\
-             SESSION TRANSCRIPT:\n{transcript}"
+             <transcript>\n{transcript}\n</transcript>"
         );
 
         let output = Command::new("claude")
