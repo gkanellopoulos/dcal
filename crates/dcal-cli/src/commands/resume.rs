@@ -37,6 +37,17 @@ pub fn run(target: String) -> Result<()> {
     let terminal_output = brief::format_terminal(&reengagement);
     println!("\n{terminal_output}\n");
 
+    // Reactivate project regardless of whether CC is launched
+    if meta.status == ProjectStatus::Paused {
+        let mut updated_meta = meta.clone();
+        updated_meta.status = ProjectStatus::Active;
+        updated_meta.last_active_at = Utc::now();
+        project_files::save_meta(&paths.project_meta(&entry.id), &updated_meta)?;
+
+        let updated_entry = RegistryEntry::from(&updated_meta);
+        registry::update(&paths.registry(), &updated_entry)?;
+    }
+
     // Confirm launch
     let launch = dialoguer::Confirm::new()
         .with_prompt("Launch CC with this context?")
@@ -46,17 +57,6 @@ pub fn run(target: String) -> Result<()> {
     if !launch {
         println!("Cancelled.");
         return Ok(());
-    }
-
-    // Update status to Active if paused
-    if meta.status == ProjectStatus::Paused {
-        let mut updated_meta = meta.clone();
-        updated_meta.status = ProjectStatus::Active;
-        updated_meta.last_active_at = Utc::now();
-        project_files::save_meta(&paths.project_meta(&entry.id), &updated_meta)?;
-
-        let updated_entry = RegistryEntry::from(&updated_meta);
-        registry::update(&paths.registry(), &updated_entry)?;
     }
 
     // Write brief to temp file

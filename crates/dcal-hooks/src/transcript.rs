@@ -63,18 +63,18 @@ fn extract_content(lines: &[&str]) -> Result<String, TranscriptError> {
 }
 
 fn extract_text_from_entry(value: &serde_json::Value) -> Option<String> {
-    let role = value.get("role").and_then(|r| r.as_str())?;
+    let entry_type = value.get("type").and_then(|t| t.as_str())?;
 
-    // Handle different content formats
-    let text = if let Some(content) = value.get("message").and_then(|m| m.get("content")) {
-        extract_text_from_content(content)
-    } else if let Some(content) = value.get("content") {
-        extract_text_from_content(content)
-    } else {
-        None
-    };
+    if entry_type != "user" && entry_type != "assistant" {
+        return None;
+    }
 
-    text.map(|t| format!("[{role}]: {t}"))
+    let content = value
+        .get("message")
+        .and_then(|m| m.get("content"))?;
+
+    let text = extract_text_from_content(content)?;
+    Some(format!("[{entry_type}]: {text}"))
 }
 
 fn extract_text_from_content(content: &serde_json::Value) -> Option<String> {
@@ -113,41 +113,59 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
-    fn extract_text_string_content() {
+    fn extract_text_user_string_content() {
         let entry = serde_json::json!({
-            "role": "user",
-            "content": "Hello, world!"
+            "type": "user",
+            "message": {"role": "user", "content": "Hello, world!"},
+            "uuid": "abc123",
+            "sessionId": "sess1"
         });
         let result = extract_text_from_entry(&entry);
         assert_eq!(result, Some("[user]: Hello, world!".to_string()));
     }
 
     #[test]
-    fn extract_text_array_content() {
+    fn extract_text_assistant_array_content() {
         let entry = serde_json::json!({
-            "role": "assistant",
+            "type": "assistant",
             "message": {
+                "role": "assistant",
                 "content": [
                     {"type": "text", "text": "Here is the answer."},
                     {"type": "tool_use", "name": "read_file"}
                 ]
-            }
+            },
+            "uuid": "def456",
+            "sessionId": "sess1"
         });
         let result = extract_text_from_entry(&entry);
         assert_eq!(result, Some("[assistant]: Here is the answer.".to_string()));
     }
 
     #[test]
-    fn extract_text_no_role_returns_none() {
-        let entry = serde_json::json!({"content": "no role"});
+    fn extract_text_non_message_type_returns_none() {
+        let entry = serde_json::json!({"type": "permission-mode", "mode": "default"});
+        assert!(extract_text_from_entry(&entry).is_none());
+
+        let entry = serde_json::json!({"type": "file-history-snapshot"});
+        assert!(extract_text_from_entry(&entry).is_none());
+
+        let entry = serde_json::json!({"type": "attachment"});
+        assert!(extract_text_from_entry(&entry).is_none());
+    }
+
+    #[test]
+    fn extract_text_no_type_returns_none() {
+        let entry = serde_json::json!({"content": "no type field"});
         assert!(extract_text_from_entry(&entry).is_none());
     }
 
     #[test]
     fn extract_text_tool_only_returns_none() {
         let entry = serde_json::json!({
-            "role": "assistant",
+            "type": "assistant",
             "message": {
+                "role": "assistant",
                 "content": [
                     {"type": "tool_use", "name": "bash"}
                 ]
@@ -159,8 +177,8 @@ mod tests {
     #[test]
     fn extract_content_from_lines() {
         let lines = vec![
-            r#"{"role": "user", "content": "What is 2+2?"}"#,
-            r#"{"role": "assistant", "message": {"content": [{"type": "text", "text": "4"}]}}"#,
+            r#"{"type": "user", "message": {"role": "user", "content": "What is 2+2?"}, "uuid": "a"}"#,
+            r#"{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "4"}]}, "uuid": "b"}"#,
         ];
         let result = extract_content(&lines).unwrap();
         assert!(result.contains("[user]: What is 2+2?"));
@@ -168,23 +186,25 @@ mod tests {
     }
 
     #[test]
-    fn extract_content_skips_empty_lines() {
+    fn extract_content_skips_non_message_entries() {
         let lines = vec![
-            r#"{"role": "user", "content": "hello"}"#,
+            r#"{"type": "user", "message": {"role": "user", "content": "hello"}, "uuid": "a"}"#,
+            r#"{"type": "permission-mode", "mode": "default"}"#,
             "",
-            r#"{"role": "assistant", "message": {"content": [{"type": "text", "text": "hi"}]}}"#,
+            r#"{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "hi"}]}, "uuid": "b"}"#,
         ];
         let result = extract_content(&lines).unwrap();
         assert!(result.contains("[user]: hello"));
         assert!(result.contains("[assistant]: hi"));
+        assert!(!result.contains("permission"));
     }
 
     #[test]
     fn read_transcript_from_file() {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("transcript.jsonl");
-        let content = r#"{"role": "user", "content": "test input"}
-{"role": "assistant", "message": {"content": [{"type": "text", "text": "test output"}]}}"#;
+        let content = r#"{"type": "user", "message": {"role": "user", "content": "test input"}, "uuid": "a"}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "test output"}]}, "uuid": "b"}"#;
         fs::write(&path, content).unwrap();
 
         let result = read_transcript(&path).unwrap();
@@ -203,7 +223,7 @@ mod tests {
         let mut lines = Vec::new();
         for i in 0..100 {
             lines.push(format!(
-                r#"{{"role": "user", "content": "Message number {i} with some padding text to make it longer"}}"#
+                r#"{{"type": "user", "message": {{"role": "user", "content": "Message number {i} with some padding text to make it longer"}}, "uuid": "{i}"}}"#
             ));
         }
         let line_refs: Vec<&str> = lines.iter().map(|s| s.as_str()).collect();

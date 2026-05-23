@@ -66,20 +66,23 @@ pub fn sync_unprocessed_sessions(
 
         let transcript_content = match transcript::read_transcript(transcript_path) {
             Ok(content) => content,
-            Err(_) => {
+            Err(e) => {
+                eprintln!("  warning: skipping session '{session_id}': {e}");
                 skipped += 1;
                 continue;
             }
         };
 
         if transcript_content.trim().is_empty() {
+            eprintln!("  warning: skipping session '{session_id}': empty transcript");
             skipped += 1;
             continue;
         }
 
         let summary = match summarizer.summarize(&transcript_content) {
             Ok(s) => s,
-            Err(_) => {
+            Err(e) => {
+                eprintln!("  warning: skipping session '{session_id}': {e}");
                 skipped += 1;
                 continue;
             }
@@ -145,7 +148,7 @@ mod tests {
 
     fn write_transcript(cc_dir: &Path, session_id: &str) {
         let content = format!(
-            r#"{{"role": "user", "content": "Build a feature"}}{nl}{{"role": "assistant", "message": {{"content": [{{"type": "text", "text": "Done."}}]}}}}"#,
+            r#"{{"type": "user", "message": {{"role": "user", "content": "Build a feature"}}, "uuid": "a"}}{nl}{{"type": "assistant", "message": {{"role": "assistant", "content": [{{"type": "text", "text": "Done."}}]}}, "uuid": "b"}}"#,
             nl = "\n"
         );
         std::fs::write(cc_dir.join(format!("{session_id}.jsonl")), content).unwrap();

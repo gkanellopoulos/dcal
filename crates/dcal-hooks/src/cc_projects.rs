@@ -11,8 +11,11 @@ pub fn derive_cc_slug(absolute_path: &str) -> String {
 }
 
 /// Build the full CC project directory path.
+///
+/// Expands tilde before deriving the slug, since CC uses absolute paths.
 pub fn cc_project_dir(cc_home: &Path, project_path: &str) -> PathBuf {
-    let slug = derive_cc_slug(project_path);
+    let absolute = dcal_core::paths::expand_tilde(project_path);
+    let slug = derive_cc_slug(&absolute.to_string_lossy());
     cc_home.join("projects").join(slug)
 }
 
@@ -98,6 +101,17 @@ mod tests {
             result,
             PathBuf::from("/Users/gk/.claude/projects/-Users-gk-projects-foo")
         );
+    }
+
+    #[test]
+    fn cc_project_dir_expands_tilde() {
+        let home = Path::new("/Users/gk/.claude");
+        let result = cc_project_dir(home, "~/projects/foo");
+        let result_str = result.to_string_lossy();
+        // Tilde is expanded to the actual home directory, not left as "~"
+        assert!(!result_str.contains('~'), "tilde was not expanded: {result_str}");
+        // The slug should end with -projects-foo (from the expanded absolute path)
+        assert!(result_str.ends_with("-projects-foo"), "unexpected slug: {result_str}");
     }
 
     #[test]
