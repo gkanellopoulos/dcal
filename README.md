@@ -16,18 +16,24 @@ that helps track and work with multiple Claude Code projects at the same time.
 
 ## Install
 
-Requires Rust (stable) and Claude Code on PATH.
+Requires Claude Code on PATH.
 
 ```
-cargo install dcal
+curl -sSf https://raw.githubusercontent.com/gkanellopoulos/dcal/main/install.sh | sh
 ```
 
-Or build from source:
+Or build from source (requires Rust stable):
 
 ```
 git clone https://github.com/gkanellopoulos/dcal.git
 cd dcal
 cargo build --release
+```
+
+You can also set a custom install directory:
+
+```
+DCAL_INSTALL_DIR=~/.local/bin curl -sSf https://raw.githubusercontent.com/gkanellopoulos/dcal/main/install.sh | sh
 ```
 
 Set your Anthropic API key (needed for project creation and session sync):
