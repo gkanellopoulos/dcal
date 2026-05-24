@@ -22,6 +22,12 @@ Requires Claude Code on PATH.
 curl -sSf https://raw.githubusercontent.com/gkanellopoulos/dcal/main/install.sh | sh
 ```
 
+On Windows (PowerShell):
+
+```
+irm https://raw.githubusercontent.com/gkanellopoulos/dcal/main/install.ps1 | iex
+```
+
 Or build from source (requires Rust stable):
 
 ```
