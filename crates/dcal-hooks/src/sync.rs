@@ -47,11 +47,16 @@ pub fn sync_unprocessed_sessions(
 
     let sessions = project_files::load_sessions(&paths.project_sessions(&entry.id))?;
     let known_ids = cc_projects::known_cc_session_ids(&sessions);
-    let unprocessed = cc_projects::find_unprocessed(&cc_dir, &known_ids);
+    let mut unprocessed = cc_projects::find_unprocessed(&cc_dir, &known_ids);
 
     if unprocessed.is_empty() {
         return Ok(SyncResult { synced: 0, skipped: 0 });
     }
+
+    // Sort by transcript timestamp so the snapshot reflects the latest session
+    unprocessed.sort_by_key(|(_, path)| {
+        transcript::last_timestamp(path).unwrap_or_default()
+    });
 
     let total = unprocessed.len();
     let mut synced = 0;
