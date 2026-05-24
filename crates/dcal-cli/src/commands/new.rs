@@ -13,7 +13,7 @@ pub fn run(path: Option<PathBuf>, cc_model: Option<String>) -> Result<()> {
     let paths = DcalPaths::from_env();
 
     if !paths.config().exists() {
-        anyhow::bail!("dcal is not initialized. Run 'dcal init' first.");
+        eprintln!("Note: no config found. Using defaults. Run 'dcal init' to personalize.\n");
     }
 
     // Validate --path early, before any API calls
