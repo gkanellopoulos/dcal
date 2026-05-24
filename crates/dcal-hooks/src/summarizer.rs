@@ -8,7 +8,17 @@ pub trait Summarizer {
 }
 
 /// Real implementation that calls `claude -p` to summarize transcripts.
-pub struct ClaudeCliSummarizer;
+pub struct ClaudeCliSummarizer {
+    pub model: String,
+}
+
+impl ClaudeCliSummarizer {
+    pub fn new(model: &str) -> Self {
+        Self {
+            model: model.to_string(),
+        }
+    }
+}
 
 impl Summarizer for ClaudeCliSummarizer {
     fn summarize(&self, transcript: &str) -> Result<SessionSummary, CheckinError> {
@@ -33,8 +43,12 @@ impl Summarizer for ClaudeCliSummarizer {
              <transcript>\n{transcript}\n</transcript>"
         );
 
-        let output = Command::new("claude")
-            .args(["-p", "--bare", "--output-format", "json", "--max-turns", "1"])
+        let mut cmd = Command::new("claude");
+        cmd.args(["-p", "--bare", "--output-format", "json", "--max-turns", "1"]);
+        if !self.model.is_empty() {
+            cmd.args(["--model", &self.model]);
+        }
+        let output = cmd
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())

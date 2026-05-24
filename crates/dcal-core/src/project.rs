@@ -115,6 +115,8 @@ pub struct ProjectMeta {
     pub priority: String,
     #[serde(default)]
     pub cc_session_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub cc_model: String,
 }
 
 fn default_priority() -> String {
@@ -186,6 +188,7 @@ mod tests {
             tags: vec!["python".into(), "cli".into(), "finance".into()],
             priority: "medium".to_string(),
             cc_session_ids: vec![],
+            cc_model: String::new(),
         }
     }
 

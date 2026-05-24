@@ -38,6 +38,10 @@ enum Command {
         /// Create project at a specific path (default: cwd/project_name)
         #[arg(long)]
         path: Option<PathBuf>,
+
+        /// Claude Code model for sessions in this project (e.g. opus, sonnet)
+        #[arg(long)]
+        model: Option<String>,
     },
 
     /// List all registered projects
@@ -55,6 +59,10 @@ enum Command {
     Resume {
         /// Project name or ID
         target: String,
+
+        /// Claude Code model for this session (e.g. opus, sonnet)
+        #[arg(long)]
+        model: Option<String>,
     },
 
     /// Pause a project
@@ -131,9 +139,9 @@ fn main() {
         Command::Info { target } => commands::info::run(target),
         Command::Init => commands::init::run(),
         Command::Journal { target } => commands::journal::run(target),
-        Command::New { path } => commands::new::run(path),
+        Command::New { path, model } => commands::new::run(path, model),
         Command::List { status, stale } => commands::list::run(status, stale),
-        Command::Resume { target } => commands::resume::run(target),
+        Command::Resume { target, model } => commands::resume::run(target, model),
         Command::Pause { target, note } => commands::pause::run(target, note),
         Command::Phase { target, phase } => commands::phase::run(target, phase),
         Command::Checkin {

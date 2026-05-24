@@ -20,6 +20,9 @@ pub struct Config {
 
     #[serde(default)]
     pub journal: JournalConfig,
+
+    #[serde(default)]
+    pub models: ModelsConfig,
 }
 
 impl Default for Config {
@@ -31,6 +34,7 @@ impl Default for Config {
             defaults: ProjectDefaults::default(),
             claude_md: ClaudeMdConfig::default(),
             journal: JournalConfig::default(),
+            models: ModelsConfig::default(),
         }
     }
 }
@@ -123,6 +127,31 @@ pub struct ClaudeMdConfig {
     pub personal_context: String,
 }
 
+/// Model overrides for dcal's own API and CLI calls.
+///
+/// Empty strings mean "use the built-in default."
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ModelsConfig {
+    #[serde(default = "default_intake_model")]
+    pub intake: String,
+
+    #[serde(default = "default_generate_model")]
+    pub generate: String,
+
+    #[serde(default)]
+    pub sync: String,
+}
+
+impl Default for ModelsConfig {
+    fn default() -> Self {
+        Self {
+            intake: default_intake_model(),
+            generate: default_generate_model(),
+            sync: String::new(),
+        }
+    }
+}
+
 /// Configuration for session journaling behavior.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct JournalConfig {
@@ -162,6 +191,14 @@ fn default_true() -> bool {
     true
 }
 
+fn default_intake_model() -> String {
+    "claude-haiku-4-5".to_string()
+}
+
+fn default_generate_model() -> String {
+    "claude-sonnet-4-5".to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -177,6 +214,9 @@ mod tests {
         assert!(config.defaults.open_after_create);
         assert!(config.journal.auto_checkin);
         assert!(config.journal.prompt_for_human_note);
+        assert_eq!(config.models.intake, "claude-haiku-4-5");
+        assert_eq!(config.models.generate, "claude-sonnet-4-5");
+        assert!(config.models.sync.is_empty());
     }
 
     #[test]
@@ -215,6 +255,11 @@ mod tests {
             journal: JournalConfig {
                 auto_checkin: true,
                 prompt_for_human_note: false,
+            },
+            models: ModelsConfig {
+                intake: "claude-haiku-4-5".to_string(),
+                generate: "claude-sonnet-4-5".to_string(),
+                sync: "claude-sonnet-4-5".to_string(),
             },
         };
 

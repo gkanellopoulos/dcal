@@ -39,9 +39,20 @@ Respond with JSON only, no other text.
 }"#;
 
 /// Run Stage 1: extract a structured ProjectBrief from raw idea text.
-pub async fn run<C: AnthropicClient>(client: &C, idea: &str) -> Result<ProjectBrief, IntakeError> {
+///
+/// `model_override` replaces the default model when non-empty.
+pub async fn run<C: AnthropicClient>(
+    client: &C,
+    idea: &str,
+    model_override: &str,
+) -> Result<ProjectBrief, IntakeError> {
+    let model = if model_override.is_empty() {
+        INTAKE_MODEL
+    } else {
+        model_override
+    };
     let request = ApiRequest {
-        model: INTAKE_MODEL.to_string(),
+        model: model.to_string(),
         system: Some(INTAKE_SYSTEM.to_string()),
         messages: vec![Message {
             role: "user".to_string(),
@@ -90,7 +101,7 @@ mod tests {
     #[tokio::test]
     async fn intake_parses_brief() {
         let client = MockClient::with_response(SAMPLE_BRIEF);
-        let brief = run(&client, "Build a tool to parse invoices from PDF files").await.unwrap();
+        let brief = run(&client, "Build a tool to parse invoices from PDF files", "").await.unwrap();
 
         assert_eq!(brief.name, "invoice-parser");
         assert_eq!(brief.domain, "document processing");
@@ -102,7 +113,7 @@ mod tests {
     async fn intake_handles_code_fenced_json() {
         let fenced = format!("```json\n{SAMPLE_BRIEF}\n```");
         let client = MockClient::with_response(&fenced);
-        let brief = run(&client, "some idea").await.unwrap();
+        let brief = run(&client, "some idea", "").await.unwrap();
         assert_eq!(brief.name, "invoice-parser");
     }
 
@@ -111,14 +122,14 @@ mod tests {
         let client = MockClient::new(vec![
             Err(ApiError::MissingApiKey),
         ]);
-        let result = run(&client, "some idea").await;
+        let result = run(&client, "some idea", "").await;
         assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn intake_bad_json_gives_parse_error() {
         let client = MockClient::with_response("this is not json");
-        let result = run(&client, "some idea").await;
+        let result = run(&client, "some idea", "").await;
         assert!(matches!(result, Err(IntakeError::Parse(_))));
     }
 

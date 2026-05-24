@@ -36,6 +36,7 @@ pub struct ScaffoldParams {
     pub claude_md_content: String,
     pub idea_text: String,
     pub git_init: bool,
+    pub cc_model: String,
 }
 
 /// Result of scaffolding.
@@ -92,6 +93,7 @@ pub fn run(paths: &DcalPaths, params: ScaffoldParams) -> Result<ScaffoldResult, 
         tags: vec![],
         priority: "medium".to_string(),
         cc_session_ids: vec![],
+        cc_model: params.cc_model,
     };
 
     let dcal_project_dir = paths.project_dir(&id);
@@ -139,6 +141,7 @@ mod tests {
                 claude_md_content: "# test-app\n".to_string(),
                 idea_text: "Build a test app".to_string(),
                 git_init: false,
+                cc_model: String::new(),
             },
         )
         .unwrap();
@@ -161,6 +164,7 @@ mod tests {
                 claude_md_content: "# Generated CLAUDE.md\n\nContent here.\n".to_string(),
                 idea_text: "idea".to_string(),
                 git_init: false,
+                cc_model: String::new(),
             },
         )
         .unwrap();
@@ -182,6 +186,7 @@ mod tests {
                 claude_md_content: "# test\n".to_string(),
                 idea_text: "Build something cool".to_string(),
                 git_init: false,
+                cc_model: String::new(),
             },
         )
         .unwrap();
@@ -207,6 +212,7 @@ mod tests {
                 claude_md_content: "# test\n".to_string(),
                 idea_text: "idea".to_string(),
                 git_init: false,
+                cc_model: String::new(),
             },
         )
         .unwrap();
@@ -231,6 +237,7 @@ mod tests {
                 claude_md_content: "# test\n".to_string(),
                 idea_text: "idea".to_string(),
                 git_init: false,
+                cc_model: String::new(),
             },
         )
         .unwrap();
@@ -253,6 +260,7 @@ mod tests {
                 claude_md_content: "# test\n".to_string(),
                 idea_text: "idea".to_string(),
                 git_init: true,
+                cc_model: String::new(),
             },
         )
         .unwrap();
@@ -273,6 +281,7 @@ mod tests {
                 claude_md_content: "# test\n".to_string(),
                 idea_text: "Build a CLI tool for invoices".to_string(),
                 git_init: false,
+                cc_model: String::new(),
             },
         )
         .unwrap();

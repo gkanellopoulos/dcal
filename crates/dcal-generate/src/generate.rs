@@ -13,15 +13,23 @@ const GENERATE_MODEL: &str = "claude-sonnet-4-5";
 const GENERATE_MAX_TOKENS: u32 = 2048;
 
 /// Run Stage 3: generate a CLAUDE.md from a ResolvedSpec.
+///
+/// `model_override` replaces the default model when non-empty.
 pub async fn run<C: AnthropicClient>(
     client: &C,
     spec: &ResolvedSpec,
+    model_override: &str,
 ) -> Result<String, GenerateError> {
     let system = build_system_prompt(spec);
     let user_message = build_user_message(spec);
 
+    let model = if model_override.is_empty() {
+        GENERATE_MODEL
+    } else {
+        model_override
+    };
     let request = ApiRequest {
-        model: GENERATE_MODEL.to_string(),
+        model: model.to_string(),
         system: Some(system),
         messages: vec![Message {
             role: "user".to_string(),
@@ -193,7 +201,7 @@ Ideation — defining scope and constraints.
         let client = MockClient::with_response(SAMPLE_CLAUDE_MD);
         let spec = sample_spec();
 
-        let result = run(&client, &spec).await.unwrap();
+        let result = run(&client, &spec, "").await.unwrap();
         assert!(result.contains("# invoice-parser"));
         assert!(result.contains("## Goals"));
     }
@@ -203,7 +211,7 @@ Ideation — defining scope and constraints.
         let fenced = format!("```markdown\n{SAMPLE_CLAUDE_MD}\n```");
         let client = MockClient::with_response(&fenced);
 
-        let result = run(&client, &sample_spec()).await.unwrap();
+        let result = run(&client, &sample_spec(), "").await.unwrap();
         assert!(!result.starts_with("```"));
         assert!(result.contains("# invoice-parser"));
     }
@@ -211,7 +219,7 @@ Ideation — defining scope and constraints.
     #[tokio::test]
     async fn generate_api_error_propagates() {
         let client = MockClient::new(vec![Err(ApiError::MissingApiKey)]);
-        let result = run(&client, &sample_spec()).await;
+        let result = run(&client, &sample_spec(), "").await;
         assert!(result.is_err());
     }
 

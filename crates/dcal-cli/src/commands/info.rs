@@ -130,7 +130,10 @@ fn run_sync(entry: &RegistryEntry, paths: &DcalPaths) {
     let home = std::env::var("HOME").unwrap_or_default();
     let cc_home = PathBuf::from(&home).join(".claude");
 
-    let summarizer = dcal_hooks::summarizer::ClaudeCliSummarizer;
+    let sync_model = dcal_config::loader::load(&paths.config())
+        .map(|c| c.models.sync.clone())
+        .unwrap_or_default();
+    let summarizer = dcal_hooks::summarizer::ClaudeCliSummarizer::new(&sync_model);
 
     match dcal_hooks::sync::sync_unprocessed_sessions(entry, paths, &cc_home, &summarizer) {
         Ok(result) if result.synced > 0 => {

@@ -2,6 +2,8 @@
 name = "dcal-hooks"
 version.workspace = true
 edition.workspace = true
+publish = false
+license = "MIT"
 
 [dependencies]
 serde = { workspace = true }

@@ -9,7 +9,7 @@ use dcal_generate::client::ReqwestClient;
 use dcal_generate::scaffold::{self, ScaffoldParams};
 use dcal_generate::{generate, intake, resolve, validate};
 
-pub fn run(path: Option<PathBuf>) -> Result<()> {
+pub fn run(path: Option<PathBuf>, cc_model: Option<String>) -> Result<()> {
     let paths = DcalPaths::from_env();
 
     if !paths.config().exists() {
@@ -54,7 +54,7 @@ pub fn run(path: Option<PathBuf>) -> Result<()> {
         spinner.set_message("Analyzing idea...");
         spinner.enable_steady_tick(std::time::Duration::from_millis(100));
 
-        let brief = intake::run(&client, &idea).await
+        let brief = intake::run(&client, &idea, &config.models.intake).await
             .context("intake stage failed")?;
 
         spinner.set_message("Generating CLAUDE.md...");
@@ -63,7 +63,7 @@ pub fn run(path: Option<PathBuf>) -> Result<()> {
         let spec = resolve::run(&brief, &config);
 
         // Stage 3: Generate
-        let claude_md = generate::run(&client, &spec).await
+        let claude_md = generate::run(&client, &spec, &config.models.generate).await
             .context("generation stage failed")?;
 
         spinner.finish_and_clear();
@@ -90,6 +90,7 @@ pub fn run(path: Option<PathBuf>) -> Result<()> {
     let project_path_str = project_path.display().to_string();
 
     // Stage 5: Scaffold
+    let model = cc_model.unwrap_or_default();
     let result = scaffold::run(
         &paths,
         ScaffoldParams {
@@ -99,6 +100,7 @@ pub fn run(path: Option<PathBuf>) -> Result<()> {
             claude_md_content: claude_md,
             idea_text: idea,
             git_init: config.defaults.git_init,
+            cc_model: model.clone(),
         },
     )
     .context("scaffold stage failed")?;
@@ -109,9 +111,12 @@ pub fn run(path: Option<PathBuf>) -> Result<()> {
     // Launch Claude Code if configured
     if config.defaults.open_after_create {
         println!("\nLaunching Claude Code...\n");
-        let status = Command::new("claude")
-            .current_dir(&project_path_str)
-            .status();
+        let mut cmd = Command::new("claude");
+        cmd.current_dir(&project_path_str);
+        if !model.is_empty() {
+            cmd.args(["--model", &model]);
+        }
+        let status = cmd.status();
 
         match status {
             Ok(s) if s.success() => {}

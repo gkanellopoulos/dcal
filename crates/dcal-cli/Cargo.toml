@@ -1,7 +1,15 @@
 [package]
 name = "dcal"
-version.workspace = true
-edition.workspace = true
+version = "0.2.0"
+edition = "2021"
+authors = ["George Kanellopoulos <george@gkanellopoulos.com>"]
+description = "Project lifecycle management for Claude Code"
+license = "MIT"
+repository = "https://github.com/gkanellopoulos/dcal"
+homepage = "https://github.com/gkanellopoulos/dcal"
+readme = "../../README.md"
+keywords = ["cli", "claude", "project-management", "developer-tools"]
+categories = ["command-line-utilities", "development-tools"]
 
 [[bin]]
 name = "dcal"

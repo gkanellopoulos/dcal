@@ -3,7 +3,8 @@ use thiserror::Error;
 
 use crate::loader;
 use crate::model::{
-    ClaudeMdConfig, Config, JournalConfig, PersonalConfig, Preferences, ProjectDefaults,
+    ClaudeMdConfig, Config, JournalConfig, ModelsConfig, PersonalConfig, Preferences,
+    ProjectDefaults,
 };
 
 #[derive(Debug, Error)]
@@ -36,6 +37,7 @@ pub fn run_wizard(config_path: &Path) -> Result<Config, InitError> {
         defaults,
         claude_md,
         journal,
+        models: ModelsConfig::default(),
     };
 
     loader::save(config_path, &config)?;

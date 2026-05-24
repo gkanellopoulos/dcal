@@ -194,6 +194,7 @@ mod tests {
             tags: vec![],
             priority: "medium".to_string(),
             cc_session_ids: vec![],
+            cc_model: String::new(),
         }
     }
 

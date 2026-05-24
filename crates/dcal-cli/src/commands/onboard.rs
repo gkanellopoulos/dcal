@@ -68,6 +68,13 @@ pub fn run(path: PathBuf) -> Result<()> {
             .interact_text()?
     };
 
+    // Prompt for CC model
+    let cc_model: String = dialoguer::Input::new()
+        .with_prompt("Preferred CC model (e.g. opus, sonnet, or empty for default)")
+        .allow_empty(true)
+        .default(String::new())
+        .interact_text()?;
+
     // Import
     let result = importer::import(
         &paths,
@@ -77,6 +84,7 @@ pub fn run(path: PathBuf) -> Result<()> {
             path: collapsed.clone(),
             status,
             last_active_at: info.last_commit_date,
+            cc_model,
         },
     )?;
 

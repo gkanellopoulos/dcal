@@ -23,6 +23,7 @@ pub struct ImportParams {
     pub path: String,
     pub status: ProjectStatus,
     pub last_active_at: Option<DateTime<Utc>>,
+    pub cc_model: String,
 }
 
 /// Import result containing the generated project ID.
@@ -53,6 +54,7 @@ pub fn import(paths: &DcalPaths, params: ImportParams) -> Result<ImportResult, I
         tags: vec![],
         priority: "medium".to_string(),
         cc_session_ids: vec![],
+        cc_model: params.cc_model,
     };
 
     let project_dir = paths.project_dir(&id);
@@ -92,6 +94,7 @@ mod tests {
                 path: "~/projects/myapp".to_string(),
                 status: ProjectStatus::Active,
                 last_active_at: None,
+                cc_model: String::new(),
             },
         )
         .unwrap();
@@ -116,6 +119,7 @@ mod tests {
                 path: "~/projects/myapp".to_string(),
                 status: ProjectStatus::Paused,
                 last_active_at: None,
+                cc_model: String::new(),
             },
         )
         .unwrap();
@@ -139,6 +143,7 @@ mod tests {
                 path: "~/projects/myapp".to_string(),
                 status: ProjectStatus::Active,
                 last_active_at: None,
+                cc_model: String::new(),
             },
         )
         .unwrap();
@@ -162,6 +167,7 @@ mod tests {
                 path: "~/projects/oldapp".to_string(),
                 status: ProjectStatus::Paused,
                 last_active_at: Some(custom_date),
+                cc_model: String::new(),
             },
         )
         .unwrap();
@@ -182,6 +188,7 @@ mod tests {
                 path: "~/projects/app1".to_string(),
                 status: ProjectStatus::Active,
                 last_active_at: None,
+                cc_model: String::new(),
             },
         )
         .unwrap();
@@ -194,6 +201,7 @@ mod tests {
                 path: "~/projects/app2".to_string(),
                 status: ProjectStatus::Active,
                 last_active_at: None,
+                cc_model: String::new(),
             },
         )
         .unwrap();

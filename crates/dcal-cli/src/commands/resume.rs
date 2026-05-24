@@ -14,7 +14,7 @@ use dcal_core::registry;
 use crate::output::relative_time;
 use crate::resolve::resolve_target;
 
-pub fn run(target: String) -> Result<()> {
+pub fn run(target: String, cc_model: Option<String>) -> Result<()> {
     let paths = DcalPaths::from_env();
     let entries = registry::load(&paths.registry())
         .with_context(|| "failed to load registry")?;
@@ -37,15 +37,29 @@ pub fn run(target: String) -> Result<()> {
     let terminal_output = brief::format_terminal(&reengagement);
     println!("\n{terminal_output}\n");
 
-    // Reactivate project regardless of whether CC is launched
-    if meta.status == ProjectStatus::Paused {
-        let mut updated_meta = meta.clone();
-        updated_meta.status = ProjectStatus::Active;
-        updated_meta.last_active_at = Utc::now();
-        project_files::save_meta(&paths.project_meta(&entry.id), &updated_meta)?;
+    // Resolve effective CC model: --model flag overrides and persists
+    let effective_model = cc_model.unwrap_or_default();
+    let model_to_use = if effective_model.is_empty() {
+        meta.cc_model.clone()
+    } else {
+        effective_model
+    };
 
-        let updated_entry = RegistryEntry::from(&updated_meta);
-        registry::update(&paths.registry(), &updated_entry)?;
+    // Reactivate project and persist model override
+    {
+        let mut updated_meta = meta.clone();
+        if meta.status == ProjectStatus::Paused {
+            updated_meta.status = ProjectStatus::Active;
+            updated_meta.last_active_at = Utc::now();
+        }
+        if !model_to_use.is_empty() {
+            updated_meta.cc_model = model_to_use.clone();
+        }
+        if updated_meta != meta {
+            project_files::save_meta(&paths.project_meta(&entry.id), &updated_meta)?;
+            let updated_entry = RegistryEntry::from(&updated_meta);
+            registry::update(&paths.registry(), &updated_entry)?;
+        }
     }
 
     // Confirm launch
@@ -67,11 +81,14 @@ pub fn run(target: String) -> Result<()> {
 
     // Launch CC
     let project_path = expand_tilde(&meta.path);
-    let status = Command::new("claude")
-        .arg("--append-system-prompt-file")
+    let mut cmd = Command::new("claude");
+    cmd.arg("--append-system-prompt-file")
         .arg(&brief_file)
-        .current_dir(&project_path)
-        .status();
+        .current_dir(&project_path);
+    if !model_to_use.is_empty() {
+        cmd.args(["--model", &model_to_use]);
+    }
+    let status = cmd.status();
 
     // Clean up temp file
     let _ = fs::remove_file(&brief_file);
@@ -89,7 +106,10 @@ fn run_sync(entry: &RegistryEntry, paths: &DcalPaths) {
     let home = std::env::var("HOME").unwrap_or_default();
     let cc_home = PathBuf::from(&home).join(".claude");
 
-    let summarizer = dcal_hooks::summarizer::ClaudeCliSummarizer;
+    let sync_model = dcal_config::loader::load(&paths.config())
+        .map(|c| c.models.sync.clone())
+        .unwrap_or_default();
+    let summarizer = dcal_hooks::summarizer::ClaudeCliSummarizer::new(&sync_model);
 
     match dcal_hooks::sync::sync_unprocessed_sessions(entry, paths, &cc_home, &summarizer) {
         Ok(result) if result.synced > 0 => {

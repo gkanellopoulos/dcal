@@ -127,6 +127,7 @@ mod tests {
             tags: vec![],
             priority: "medium".to_string(),
             cc_session_ids: vec![],
+            cc_model: String::new(),
         };
 
         project_files::create_project_dir(
