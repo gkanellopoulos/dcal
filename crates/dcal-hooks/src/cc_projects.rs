@@ -5,9 +5,9 @@ use std::path::{Path, PathBuf};
 /// Derive the CC project directory slug from an absolute path.
 ///
 /// CC stores project data under `~/.claude/projects/<slug>/` where the
-/// slug is the absolute path with `/` replaced by `-`.
+/// slug is the absolute path with path separators replaced by `-`.
 pub fn derive_cc_slug(absolute_path: &str) -> String {
-    absolute_path.replace('/', "-")
+    absolute_path.replace(['/', '\\'], "-")
 }
 
 /// Build the full CC project directory path.
@@ -90,6 +90,14 @@ mod tests {
         assert_eq!(
             derive_cc_slug("/home/user/my-project"),
             "-home-user-my-project"
+        );
+    }
+
+    #[test]
+    fn slug_from_windows_path() {
+        assert_eq!(
+            derive_cc_slug("C:\\Users\\dev\\projects\\foo"),
+            "C:-Users-dev-projects-foo"
         );
     }
 

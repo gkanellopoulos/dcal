@@ -42,7 +42,8 @@ pub fn run() -> Result<()> {
 }
 
 fn is_claude_on_path() -> bool {
-    Command::new("which")
+    let cmd = if cfg!(windows) { "where" } else { "which" };
+    Command::new(cmd)
         .arg("claude")
         .output()
         .map(|o| o.status.success())

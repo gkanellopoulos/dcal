@@ -89,13 +89,16 @@ impl DcalPaths {
 
 fn home_dir() -> PathBuf {
     env::var("HOME")
+        .or_else(|_| env::var("USERPROFILE"))
         .map(PathBuf::from)
-        .expect("HOME environment variable not set")
+        .expect("HOME (or USERPROFILE on Windows) environment variable not set")
 }
 
 /// Expand a leading `~` to the user's home directory.
+///
+/// Handles both `~/path` (Unix) and `~\path` (Windows) prefixes.
 pub fn expand_tilde(path: &str) -> PathBuf {
-    if let Some(rest) = path.strip_prefix("~/") {
+    if let Some(rest) = path.strip_prefix("~/").or_else(|| path.strip_prefix("~\\")) {
         home_dir().join(rest)
     } else if path == "~" {
         home_dir()
@@ -105,10 +108,13 @@ pub fn expand_tilde(path: &str) -> PathBuf {
 }
 
 /// Collapse a leading home directory back to `~`.
+///
+/// Always uses forward slashes for portability across platforms.
 pub fn collapse_to_tilde(path: &Path) -> String {
     let home = home_dir();
     if let Ok(rest) = path.strip_prefix(&home) {
-        format!("~/{}", rest.display())
+        let rest_str = rest.to_string_lossy().replace('\\', "/");
+        format!("~/{rest_str}")
     } else {
         path.display().to_string()
     }
@@ -213,6 +219,12 @@ mod tests {
     fn expand_tilde_bare() {
         let expanded = expand_tilde("~");
         assert_eq!(expanded, home_dir());
+    }
+
+    #[test]
+    fn expand_tilde_with_backslash() {
+        let expanded = expand_tilde("~\\projects\\my-app");
+        assert!(!expanded.starts_with("~"));
     }
 
     #[test]
