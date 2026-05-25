@@ -112,8 +112,15 @@ fn run_sync(entry: &RegistryEntry, paths: &DcalPaths) {
     let summarizer = dcal_hooks::summarizer::ClaudeCliSummarizer::new(&sync_model);
 
     match dcal_hooks::sync::sync_unprocessed_sessions(entry, paths, &cc_home, &summarizer) {
-        Ok(result) if result.synced > 0 => {
-            eprintln!("Synced {} new session(s).\n", result.synced);
+        Ok(result) if result.synced > 0 || result.updated > 0 => {
+            let mut parts = Vec::new();
+            if result.synced > 0 {
+                parts.push(format!("synced {}", result.synced));
+            }
+            if result.updated > 0 {
+                parts.push(format!("updated {}", result.updated));
+            }
+            eprintln!("{} session(s).\n", parts.join(", "));
         }
         Ok(_) => {}
         Err(e) => {

@@ -46,17 +46,18 @@ fn sync_one(
     summarizer: &dyn dcal_hooks::summarizer::Summarizer,
 ) -> Result<()> {
     match dcal_hooks::sync::sync_unprocessed_sessions(entry, paths, cc_home, summarizer) {
-        Ok(result) if result.synced > 0 && result.skipped > 0 => {
-            println!(
-                "'{}': synced {} session(s), {} skipped (errors).",
-                entry.name, result.synced, result.skipped
-            );
-        }
-        Ok(result) if result.synced > 0 => {
-            println!(
-                "'{}': synced {} session(s).",
-                entry.name, result.synced
-            );
+        Ok(result) if result.synced > 0 || result.updated > 0 => {
+            let mut parts = Vec::new();
+            if result.synced > 0 {
+                parts.push(format!("synced {}", result.synced));
+            }
+            if result.updated > 0 {
+                parts.push(format!("updated {}", result.updated));
+            }
+            if result.skipped > 0 {
+                parts.push(format!("{} skipped", result.skipped));
+            }
+            println!("'{}': {} session(s).", entry.name, parts.join(", "));
         }
         Ok(result) if result.skipped > 0 => {
             println!(

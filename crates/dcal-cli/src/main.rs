@@ -35,7 +35,10 @@ enum Command {
 
     /// Guided project creation with CLAUDE.md generation
     New {
-        /// Create project at a specific path (default: cwd/project_name)
+        /// Project name (creates ./name in current directory)
+        name: Option<String>,
+
+        /// Create project at a specific path (default: cwd/name)
         #[arg(long)]
         path: Option<PathBuf>,
 
@@ -139,7 +142,7 @@ fn main() {
         Command::Info { target } => commands::info::run(target),
         Command::Init => commands::init::run(),
         Command::Journal { target } => commands::journal::run(target),
-        Command::New { path, model } => commands::new::run(path, model),
+        Command::New { name, path, model } => commands::new::run(name, path, model),
         Command::List { status, stale } => commands::list::run(status, stale),
         Command::Resume { target, model } => commands::resume::run(target, model),
         Command::Pause { target, note } => commands::pause::run(target, note),

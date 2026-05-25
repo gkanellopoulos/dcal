@@ -95,6 +95,49 @@ pub fn append_session(path: &Path, entry: &SessionEntry) -> Result<(), ProjectFi
     })
 }
 
+/// Replace a session entry that matches the given CC session ID.
+///
+/// Used when a resumed CC session produces an updated transcript. The old
+/// entry is swapped for the new one in place. Returns `true` if a match
+/// was found and replaced.
+pub fn replace_session(
+    path: &Path,
+    cc_session_id: &str,
+    new_entry: &SessionEntry,
+) -> Result<bool, ProjectFileError> {
+    let _lock = FileLock::acquire(path)?;
+
+    let mut sessions: Vec<SessionEntry> = if path.exists() {
+        let content = fs::read_to_string(path).map_err(|source| ProjectFileError::Read {
+            path: path.display().to_string(),
+            source,
+        })?;
+        serde_json::from_str(&content).map_err(|source| ProjectFileError::Parse {
+            path: path.display().to_string(),
+            source,
+        })?
+    } else {
+        return Ok(false);
+    };
+
+    let Some(pos) = sessions
+        .iter()
+        .position(|s| s.session_id.as_deref() == Some(cc_session_id))
+    else {
+        return Ok(false);
+    };
+
+    sessions[pos] = new_entry.clone();
+
+    let json = serde_json::to_string_pretty(&sessions).map_err(ProjectFileError::Serialize)?;
+    fs::write(path, json).map_err(|source| ProjectFileError::Write {
+        path: path.display().to_string(),
+        source,
+    })?;
+
+    Ok(true)
+}
+
 // -- journal.md --
 
 /// Read the full journal content.
@@ -286,6 +329,50 @@ mod tests {
         assert_eq!(loaded.len(), 2);
         assert_eq!(loaded[0].id, "sess_aaa111");
         assert_eq!(loaded[1].id, "sess_bbb222");
+    }
+
+    #[test]
+    fn replace_session_swaps_matching_entry() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("sessions.json");
+
+        let s1 = sample_session();
+        append_session(&path, &s1).unwrap();
+
+        let mut replacement = sample_session();
+        replacement.id = "sess_new111".to_string();
+        replacement.summary = "Updated summary.".to_string();
+
+        let replaced = replace_session(&path, "cc-session-1", &replacement).unwrap();
+        assert!(replaced);
+
+        let loaded = load_sessions(&path).unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].id, "sess_new111");
+        assert_eq!(loaded[0].summary, "Updated summary.");
+    }
+
+    #[test]
+    fn replace_session_returns_false_when_no_match() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("sessions.json");
+
+        let s1 = sample_session();
+        append_session(&path, &s1).unwrap();
+
+        let replacement = sample_session();
+        let replaced = replace_session(&path, "nonexistent-id", &replacement).unwrap();
+        assert!(!replaced);
+    }
+
+    #[test]
+    fn replace_session_returns_false_when_no_file() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("sessions.json");
+
+        let replacement = sample_session();
+        let replaced = replace_session(&path, "cc-session-1", &replacement).unwrap();
+        assert!(!replaced);
     }
 
     // -- journal.md tests --

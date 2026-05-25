@@ -2,6 +2,10 @@ use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
+use chrono::{DateTime, Utc};
+
+use dcal_core::project::SessionEntry;
+
 /// Derive the CC project directory slug from an absolute path.
 ///
 /// CC stores project data under `~/.claude/projects/<slug>/` where the
@@ -57,9 +61,39 @@ pub fn find_unprocessed(
         .collect()
 }
 
+/// Find transcripts that have been modified since they were last processed.
+///
+/// A CC session resume appends to the same JSONL file. This function detects
+/// transcripts whose file mtime is newer than the corresponding session's
+/// `ended_at`, indicating new content since the last sync.
+pub fn find_updated(
+    cc_dir: &Path,
+    sessions: &[SessionEntry],
+) -> Vec<(String, PathBuf)> {
+    list_transcripts(cc_dir)
+        .into_iter()
+        .filter(|(id, path)| {
+            let session = sessions
+                .iter()
+                .find(|s| s.session_id.as_deref() == Some(id.as_str()));
+            let Some(session) = session else {
+                return false;
+            };
+            let Ok(metadata) = std::fs::metadata(path) else {
+                return false;
+            };
+            let Ok(mtime) = metadata.modified() else {
+                return false;
+            };
+            let mtime_dt: DateTime<Utc> = mtime.into();
+            mtime_dt > session.ended_at
+        })
+        .collect()
+}
+
 /// Build a set of known CC session IDs from session entries.
 pub fn known_cc_session_ids(
-    sessions: &[dcal_core::project::SessionEntry],
+    sessions: &[SessionEntry],
 ) -> HashSet<String> {
     sessions
         .iter()
@@ -195,6 +229,61 @@ mod tests {
 
         let result = find_unprocessed(dir.path(), &known);
         assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn find_updated_detects_modified_transcript() {
+        use chrono::{Duration, Utc};
+
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("session-aaa.jsonl"), "{}").unwrap();
+
+        let old_time = Utc::now() - Duration::hours(1);
+        let sessions = vec![SessionEntry {
+            id: "sess_aaa".to_string(),
+            session_id: Some("session-aaa".to_string()),
+            ended_at: old_time,
+            summary: "test".to_string(),
+            next_task: "test".to_string(),
+            open_questions: vec![],
+            human_note: None,
+        }];
+
+        let result = find_updated(dir.path(), &sessions);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].0, "session-aaa");
+    }
+
+    #[test]
+    fn find_updated_ignores_unchanged_transcript() {
+        use chrono::{Duration, Utc};
+
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("session-aaa.jsonl"), "{}").unwrap();
+
+        let future_time = Utc::now() + Duration::hours(1);
+        let sessions = vec![SessionEntry {
+            id: "sess_aaa".to_string(),
+            session_id: Some("session-aaa".to_string()),
+            ended_at: future_time,
+            summary: "test".to_string(),
+            next_task: "test".to_string(),
+            open_questions: vec![],
+            human_note: None,
+        }];
+
+        let result = find_updated(dir.path(), &sessions);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn find_updated_ignores_unknown_transcripts() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("session-new.jsonl"), "{}").unwrap();
+
+        let sessions: Vec<SessionEntry> = vec![];
+        let result = find_updated(dir.path(), &sessions);
+        assert!(result.is_empty());
     }
 
     #[test]
