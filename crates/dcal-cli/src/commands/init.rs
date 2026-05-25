@@ -29,7 +29,7 @@ pub fn run() -> Result<()> {
     }
 
     // Run interactive config wizard
-    dcal_config::init::run_wizard(&paths.config())?;
+    dcal_config::init::run_wizard(&paths.config(), &paths.credentials())?;
 
     // Check for claude on PATH
     if !is_claude_on_path() {

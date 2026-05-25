@@ -1,6 +1,7 @@
 use std::path::Path;
 use thiserror::Error;
 
+use crate::credentials;
 use crate::loader;
 use crate::model::{
     ClaudeMdConfig, Config, JournalConfig, ModelsConfig, PersonalConfig, Preferences,
@@ -15,15 +16,19 @@ pub enum InitError {
     #[error("failed to save config: {0}")]
     Save(#[from] loader::ConfigError),
 
+    #[error("failed to save credentials: {0}")]
+    Credentials(#[from] credentials::CredentialsError),
+
     #[error("interactive prompt failed: {0}")]
     Prompt(#[from] dialoguer::Error),
 }
 
 /// Run the interactive config wizard and save the result.
 ///
-/// Prompts the user for personal info, preferences, and defaults.
+/// Prompts the user for personal info, preferences, defaults, and API key.
 /// Empty inputs fall back to default values.
-pub fn run_wizard(config_path: &Path) -> Result<Config, InitError> {
+pub fn run_wizard(config_path: &Path, credentials_path: &Path) -> Result<Config, InitError> {
+    prompt_api_key(credentials_path)?;
     let personal = prompt_personal()?;
     let preferences = prompt_preferences()?;
     let defaults = prompt_defaults()?;
@@ -42,6 +47,28 @@ pub fn run_wizard(config_path: &Path) -> Result<Config, InitError> {
 
     loader::save(config_path, &config)?;
     Ok(config)
+}
+
+fn prompt_api_key(credentials_path: &Path) -> Result<(), InitError> {
+    println!("\n── Anthropic API Key ──\n");
+    println!("Required for project creation and session sync.");
+    println!("Get yours at https://console.anthropic.com/settings/keys\n");
+
+    let api_key: String = dialoguer::Input::new()
+        .with_prompt("API key (sk-ant-...)")
+        .allow_empty(true)
+        .default(String::new())
+        .interact_text()?;
+
+    if api_key.trim().is_empty() {
+        println!("Skipped. You can set it later by editing {}", credentials_path.display());
+        println!("Without an API key, 'dcal new' and 'dcal sync' will not work.\n");
+    } else {
+        credentials::save_api_key(credentials_path, api_key.trim())?;
+        println!("Saved to {} (permissions: owner-only)\n", credentials_path.display());
+    }
+
+    Ok(())
 }
 
 fn prompt_personal() -> Result<PersonalConfig, InitError> {

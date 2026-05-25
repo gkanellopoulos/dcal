@@ -78,7 +78,10 @@ pub fn run(path: PathBuf) -> Result<()> {
     };
 
     // Resolve description: MEMORY.md + Haiku > CLAUDE.md > manual
-    let description = resolve_description(&info)?;
+    let api_key = dcal_config::credentials::load_api_key(&paths.credentials())
+        .ok()
+        .flatten();
+    let description = resolve_description(&info, api_key)?;
 
     // Prompt for CC model
     let cc_model: String = dialoguer::Input::new()
@@ -109,10 +112,11 @@ pub fn run(path: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn resolve_description(info: &reader::ProjectInfo) -> Result<String> {
+fn resolve_description(info: &reader::ProjectInfo, api_key: Option<String>) -> Result<String> {
     // Try MEMORY.md + Haiku first
     if let Some(ref memory_content) = info.memory_content {
-        if let Ok(client) = ReqwestClient::from_env() {
+        if let Some(key) = api_key {
+            let client = ReqwestClient::new(key);
             let rt = tokio::runtime::Runtime::new()
                 .context("failed to start async runtime")?;
 

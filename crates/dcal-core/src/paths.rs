@@ -46,6 +46,11 @@ impl DcalPaths {
         self.root.join("registry.json")
     }
 
+    /// Path to `credentials` (API key storage).
+    pub fn credentials(&self) -> PathBuf {
+        self.root.join("credentials")
+    }
+
     /// Path to `errors.log`.
     pub fn errors_log(&self) -> PathBuf {
         self.root.join("errors.log")

@@ -50,9 +50,12 @@ pub fn run(name: Option<String>, path: Option<PathBuf>, cc_model: Option<String>
         anyhow::bail!("idea cannot be empty");
     }
 
-    // Create API client
-    let client = ReqwestClient::from_env()
-        .context("ANTHROPIC_API_KEY is required for project creation")?;
+    // Load API key from credentials file (falls back to env)
+    let api_key = dcal_config::credentials::load_api_key(&paths.credentials())
+        .ok()
+        .flatten()
+        .context("API key not configured. Run 'dcal init' to set it up.")?;
+    let client = ReqwestClient::new(api_key);
 
     // Run the async pipeline
     let rt = tokio::runtime::Runtime::new()
@@ -118,7 +121,8 @@ pub fn run(name: Option<String>, path: Option<PathBuf>, cc_model: Option<String>
     if config.defaults.open_after_create {
         println!("\nLaunching Claude Code...\n");
         let mut cmd = Command::new("claude");
-        cmd.current_dir(&project_path_str);
+        cmd.current_dir(&project_path_str)
+            .env_remove("ANTHROPIC_API_KEY");
         if !model.is_empty() {
             cmd.args(["--model", &model]);
         }

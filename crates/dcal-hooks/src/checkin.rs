@@ -216,6 +216,7 @@ fn generate_summary(transcript: &str) -> Result<SessionSummary, CheckinError> {
 
     let output = Command::new("claude")
         .args(["-p", "--output-format", "json", "--max-turns", "1"])
+        .env_remove("ANTHROPIC_API_KEY")
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())

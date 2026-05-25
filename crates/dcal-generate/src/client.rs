@@ -56,6 +56,14 @@ pub struct ReqwestClient {
 }
 
 impl ReqwestClient {
+    /// Create a client with an explicit API key.
+    pub fn new(api_key: String) -> Self {
+        Self {
+            api_key,
+            http: reqwest::Client::new(),
+        }
+    }
+
     /// Create a client, reading the API key from the environment.
     pub fn from_env() -> Result<Self, ApiError> {
         let api_key = env::var("ANTHROPIC_API_KEY")

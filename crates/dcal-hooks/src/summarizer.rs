@@ -44,7 +44,8 @@ impl Summarizer for ClaudeCliSummarizer {
         );
 
         let mut cmd = Command::new("claude");
-        cmd.args(["-p", "--bare", "--output-format", "json", "--max-turns", "1"]);
+        cmd.args(["-p", "--bare", "--output-format", "json", "--max-turns", "1"])
+            .env_remove("ANTHROPIC_API_KEY");
         if !self.model.is_empty() {
             cmd.args(["--model", &self.model]);
         }

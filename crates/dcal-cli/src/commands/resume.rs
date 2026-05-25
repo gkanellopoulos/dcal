@@ -84,7 +84,8 @@ pub fn run(target: String, cc_model: Option<String>) -> Result<()> {
     let mut cmd = Command::new("claude");
     cmd.arg("--append-system-prompt-file")
         .arg(&brief_file)
-        .current_dir(&project_path);
+        .current_dir(&project_path)
+        .env_remove("ANTHROPIC_API_KEY");
     if !model_to_use.is_empty() {
         cmd.args(["--model", &model_to_use]);
     }
