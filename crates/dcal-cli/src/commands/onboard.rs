@@ -5,8 +5,21 @@ use anyhow::{Context, Result};
 use dcal_core::paths::{collapse_to_tilde, DcalPaths};
 use dcal_core::project::ProjectStatus;
 use dcal_core::registry;
+use dcal_generate::client::{AnthropicClient, ApiRequest, Message, ReqwestClient};
+use dcal_generate::intake::extract_json;
+use dcal_hooks::cc_projects;
 use dcal_onboard::importer::{self, ImportParams};
 use dcal_onboard::reader;
+
+const DESCRIBE_SYSTEM: &str = r#"You are a project description writer. You will receive the contents of a Claude Code project's memory index file. From it, determine what the project is and write a single-sentence description.
+
+Respond with JSON only, no other text.
+
+If you can determine what the project is:
+{"description": "one sentence describing what the project is and does"}
+
+If the content is too vague, contains only personal preferences or feedback with no project identity, or you cannot confidently determine what the project is:
+{"description": null}"#;
 
 pub fn run(path: PathBuf) -> Result<()> {
     let paths = DcalPaths::from_env();
@@ -29,8 +42,16 @@ pub fn run(path: PathBuf) -> Result<()> {
         anyhow::bail!("'{}' is already registered", collapsed);
     }
 
+    // Compute CC memory path
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_default();
+    let cc_home = PathBuf::from(&home).join(".claude");
+    let cc_dir = cc_projects::cc_project_dir(&cc_home, &abs_path.to_string_lossy());
+    let memory_path = cc_dir.join("memory").join("MEMORY.md");
+
     // Read project info
-    let info = reader::read_project_info(&abs_path)
+    let info = reader::read_project_info(&abs_path, Some(&memory_path))
         .with_context(|| "failed to read project info")?;
 
     // Prompt for project name
@@ -56,17 +77,8 @@ pub fn run(path: PathBuf) -> Result<()> {
         ProjectStatus::Paused
     };
 
-    // Prompt for description if none found
-    let description = if let Some(ref desc) = info.description {
-        println!("Description (from CLAUDE.md): {desc}");
-        desc.clone()
-    } else {
-        dialoguer::Input::new()
-            .with_prompt("Brief description")
-            .allow_empty(true)
-            .default(String::new())
-            .interact_text()?
-    };
+    // Resolve description: MEMORY.md + Haiku > CLAUDE.md > manual
+    let description = resolve_description(&info)?;
 
     // Prompt for CC model
     let cc_model: String = dialoguer::Input::new()
@@ -95,4 +107,76 @@ pub fn run(path: PathBuf) -> Result<()> {
     println!("Run 'dcal resume {}' to reengage.", result.name);
 
     Ok(())
+}
+
+fn resolve_description(info: &reader::ProjectInfo) -> Result<String> {
+    // Try MEMORY.md + Haiku first
+    if let Some(ref memory_content) = info.memory_content {
+        if let Ok(client) = ReqwestClient::from_env() {
+            let rt = tokio::runtime::Runtime::new()
+                .context("failed to start async runtime")?;
+
+            match rt.block_on(describe_from_memory(&client, memory_content)) {
+                Some(ai_desc) => {
+                    println!("Description (from project memory): {ai_desc}");
+                    let accept = dialoguer::Confirm::new()
+                        .with_prompt("Accept this description?")
+                        .default(true)
+                        .interact()?;
+                    if accept {
+                        return Ok(ai_desc);
+                    }
+                    let custom: String = dialoguer::Input::new()
+                        .with_prompt("Description")
+                        .interact_text()?;
+                    return Ok(custom);
+                }
+                None => {
+                    eprintln!("Could not derive description from project memory.");
+                }
+            }
+        }
+    }
+
+    // Fall back to CLAUDE.md
+    if let Some(ref desc) = info.description {
+        println!("Description (from CLAUDE.md): {desc}");
+        let accept = dialoguer::Confirm::new()
+            .with_prompt("Accept this description?")
+            .default(true)
+            .interact()?;
+        if accept {
+            return Ok(desc.clone());
+        }
+        let custom: String = dialoguer::Input::new()
+            .with_prompt("Description")
+            .interact_text()?;
+        return Ok(custom);
+    }
+
+    // Manual entry
+    let desc: String = dialoguer::Input::new()
+        .with_prompt("Brief description")
+        .allow_empty(true)
+        .default(String::new())
+        .interact_text()?;
+    Ok(desc)
+}
+
+async fn describe_from_memory(client: &ReqwestClient, memory_content: &str) -> Option<String> {
+    let request = ApiRequest {
+        model: "claude-haiku-4-5".to_string(),
+        system: Some(DESCRIBE_SYSTEM.to_string()),
+        messages: vec![Message {
+            role: "user".to_string(),
+            content: memory_content.to_string(),
+        }],
+        max_tokens: 256,
+    };
+
+    let response = client.send(request).await.ok()?;
+
+    let json_str = extract_json(&response.content);
+    let value: serde_json::Value = serde_json::from_str(json_str).ok()?;
+    value.get("description")?.as_str().map(String::from)
 }

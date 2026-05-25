@@ -71,7 +71,7 @@ pub async fn run<C: AnthropicClient>(
 }
 
 /// Strip markdown code fences if present.
-fn extract_json(content: &str) -> &str {
+pub fn extract_json(content: &str) -> &str {
     let trimmed = content.trim();
     if let Some(rest) = trimmed.strip_prefix("```json") {
         let inner = rest.trim();

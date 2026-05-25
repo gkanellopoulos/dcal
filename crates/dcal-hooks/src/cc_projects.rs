@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 /// CC stores project data under `~/.claude/projects/<slug>/` where the
 /// slug is the absolute path with path separators replaced by `-`.
 pub fn derive_cc_slug(absolute_path: &str) -> String {
-    absolute_path.replace(['/', '\\'], "-")
+    absolute_path.replace(['/', '\\', '_'], "-")
 }
 
 /// Build the full CC project directory path.
@@ -90,6 +90,14 @@ mod tests {
         assert_eq!(
             derive_cc_slug("/home/user/my-project"),
             "-home-user-my-project"
+        );
+    }
+
+    #[test]
+    fn slug_replaces_underscores() {
+        assert_eq!(
+            derive_cc_slug("/home/dev/claude_lz/my_project"),
+            "-home-dev-claude-lz-my-project"
         );
     }
 

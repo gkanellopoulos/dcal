@@ -20,6 +20,7 @@ pub enum ReaderError {
 #[derive(Debug, Clone)]
 pub struct ProjectInfo {
     pub description: Option<String>,
+    pub memory_content: Option<String>,
     pub last_commit_date: Option<DateTime<Utc>>,
 }
 
@@ -60,13 +61,43 @@ pub fn read_last_commit_date(project_path: &Path) -> Result<Option<DateTime<Utc>
         .map_err(|e| ReaderError::Git(format!("failed to parse git date '{date_str}': {e}")))
 }
 
+/// Read the contents of a CC MEMORY.md file.
+///
+/// The caller computes the full path from the CC slug. Returns `None`
+/// if the file does not exist or is empty.
+pub fn read_memory_md(memory_md_path: &Path) -> Result<Option<String>, ReaderError> {
+    if !memory_md_path.exists() {
+        return Ok(None);
+    }
+    let content = fs::read_to_string(memory_md_path).map_err(|source| ReaderError::Read {
+        path: memory_md_path.display().to_string(),
+        source,
+    })?;
+    if content.trim().is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(content))
+    }
+}
+
 /// Read all available info from a project directory.
-pub fn read_project_info(project_path: &Path) -> Result<ProjectInfo, ReaderError> {
+///
+/// `memory_md_path` is the resolved path to the CC MEMORY.md file.
+/// Pass `None` to skip memory reading.
+pub fn read_project_info(
+    project_path: &Path,
+    memory_md_path: Option<&Path>,
+) -> Result<ProjectInfo, ReaderError> {
     let description = read_claude_md_description(project_path)?;
+    let memory_content = match memory_md_path {
+        Some(p) => read_memory_md(p)?,
+        None => None,
+    };
     let last_commit_date = read_last_commit_date(project_path)?;
 
     Ok(ProjectInfo {
         description,
+        memory_content,
         last_commit_date,
     })
 }
@@ -179,6 +210,51 @@ mod tests {
 
         let result = read_last_commit_date(path).unwrap();
         assert!(result.is_some());
+    }
+
+    #[test]
+    fn read_memory_md_no_file() {
+        let result = read_memory_md(Path::new("/nonexistent/MEMORY.md")).unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn read_memory_md_with_content() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("MEMORY.md");
+        fs::write(&path, "# Memory\n- [project](project.md) — A cool project\n").unwrap();
+
+        let result = read_memory_md(&path).unwrap();
+        assert!(result.is_some());
+        assert!(result.unwrap().contains("A cool project"));
+    }
+
+    #[test]
+    fn read_memory_md_empty_file() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("MEMORY.md");
+        fs::write(&path, "   \n  \n").unwrap();
+
+        let result = read_memory_md(&path).unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn read_project_info_with_memory() {
+        let dir = TempDir::new().unwrap();
+        let mem_path = dir.path().join("MEMORY.md");
+        fs::write(&mem_path, "# Memory\n- project info\n").unwrap();
+
+        let info = read_project_info(dir.path(), Some(&mem_path)).unwrap();
+        assert!(info.memory_content.is_some());
+        assert!(info.description.is_none());
+    }
+
+    #[test]
+    fn read_project_info_without_memory() {
+        let dir = TempDir::new().unwrap();
+        let info = read_project_info(dir.path(), None).unwrap();
+        assert!(info.memory_content.is_none());
     }
 
     #[test]
